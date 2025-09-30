@@ -311,6 +311,22 @@ export default function Home() {
 
       <div className="card main-card">
         <h2 style={{marginBottom: '20px'}}>Picket Time Tracker</h2>
+        
+        {attendanceId && (
+          <div style={{
+            padding: '12px 16px',
+            background: '#FFB81C',
+            color: '#000',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontWeight: '500',
+            fontSize: '14px',
+            textAlign: 'center'
+          }}>
+            ⚠️ Keep this tab open during your shift for accurate tracking
+          </div>
+        )}
+        
         <div className="status" style={{marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px'}}>
           <div className={'dot ' + (inside ? 'ok' : '')} />
           <div>

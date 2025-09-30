@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import Link from 'next/link'
 
 type Site = { id: string, name: string, center_lat: number, center_lng: number, radius_m: number }
-type Profile = { id: string, email?: string, full_name?: string, phone?: string, role: 'worker'|'admin', site_id?: string }
+type Profile = { id: string, email?: string, full_name?: string, phone?: string, role: 'worker'|'admin', site_id?: string, attendance?: {started_at: string, active_seconds: number} }
 
 export default function Admin() {
   const [session, setSession] = useState<any>(null)
@@ -47,14 +47,20 @@ export default function Admin() {
       const { data: workers } = await supabase.from('profiles').select('id, full_name, phone, email, role').eq('role', 'worker').eq('site_id', site.id)
       const { data: atts } = await supabase
         .from('attendances')
-        .select('id, user_id')
+        .select('id, user_id, started_at, active_seconds')
         .eq('site_id', site.id)
         .gte('started_at', start.toISOString())
         .lte('started_at', end.toISOString())
 
-      const ids = new Set((atts||[]).map(a=>a.user_id))
-      setPresent((workers||[]).filter(w => ids.has(w.id)) as any)
-      setAbsent((workers||[]).filter(w => !ids.has(w.id)) as any)
+      // Map attendance data to workers
+      const attMap = new Map((atts||[]).map(a => [a.user_id, a]))
+      const workersWithAtt = (workers||[]).map(w => ({
+        ...w,
+        attendance: attMap.get(w.id)
+      }))
+      
+      setPresent(workersWithAtt.filter(w => w.attendance) as any)
+      setAbsent(workersWithAtt.filter(w => !w.attendance) as any)
     } finally {
       setLoading(false)
     }
@@ -104,6 +110,13 @@ export default function Admin() {
                   <td>
                     <div><strong>{p.full_name || p.email || p.id}</strong></div>
                     {p.phone && <div style={{fontSize: '13px', color: '#9ca3af'}}>{p.phone}</div>}
+                    {p.attendance && (
+                      <div style={{fontSize: '12px', color: '#6b7280', marginTop: '4px'}}>
+                        Checked in: {new Date(p.attendance.started_at).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}
+                        {' • '}
+                        {(p.attendance.active_seconds / 3600).toFixed(1)} hrs
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

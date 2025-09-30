@@ -113,18 +113,51 @@
 - **Fix**: Simplified logic - just send magic link for all users (no pre-auth profile check)
 - **Result**: Returning users now get magic link directly without sign-up form
 
-## Current Testing (2025-09-30 18:48)
+## Current Status (2025-09-30 19:37)
+- **GitHub Repo**: https://github.com/ASTXRTYS/picket-mvp ✅ PUSHED
+- **Vercel Deployment**: ✅ LIVE at https://local79.vercel.app
+- **Supabase Auth**: ✅ FIXED - Site URL updated to production
 - **User Coordinates**: 28.04339° N, 82.46805° W (Florida location)
-- **Site coords updated in Supabase**: Ready for geofence testing
-- **Status**: Auth working, profiles working, admin role working
+- **Status**: FULLY DEPLOYED AND WORKING
 
-## Remaining Tasks for Demo
-1. ✅ Fix user display (show name instead of UUID in admin dashboard)
-2. 🚀 Deploy to Vercel (production environment)
-3. 🧪 Real-world smoke test: Check in → Drive away → Verify timer pauses
+## 🎯 MVP POLISH SPRINT (Target: 9pm - 1 hour)
+**Goal**: Make demo impressive for tomorrow morning meeting
 
-## Completed Items
-- [x] Commit current UI as "desired UI for signing in" 
+## Production URLs
+- **Main**: https://local79.vercel.app
+- **Admin Dashboard**: https://local79.vercel.app/admin
+
+## CRITICAL LIMITATIONS (Document for V2)
+1. **Background Tracking**: Web apps CANNOT track location when tab closed/minimized
+   - iOS: Extremely limited, only works when app open
+   - Android: Slightly better in PWA mode, but still limited
+   - **Solution for V2**: Native app (React Native/Capacitor) required
+   - **Demo Workaround**: Workers must keep browser tab open during shift
+
+2. **Timer Persistence**: If user closes tab, timer resets
+   - **Solution for V2**: Server-side timer + periodic check-ins
+
+## MVP POLISH PLAN (Next 60 min)
+### Priority 1: Critical for Demo (30 min)
+1. ✅ Real-world geofence test (check-in → drive away → verify pause)
+2. ✅ Add "Keep this tab open" warning message
+3. ✅ Test full admin dashboard with multiple workers
+4. ✅ Verify all flows work on mobile browser
+
+### Priority 2: Nice-to-Have (20 min)
+5. 🎨 Add Teamsters logo (replace placeholder SVG)
+6. 📊 Admin dashboard enhancements:
+   - Show total hours worked today per person
+   - Add timestamp for when they checked in
+7. 🔔 Sound/vibration when leaving geofence
+
+### Priority 3: If Time Permits (10 min)
+8. 📱 Add "Add to Home Screen" prompt for PWA
+9. 📝 Quick start guide for Jeff & Brandon
+10. 🐛 Final bug sweep
+
+## Completed Items (Session 2025-09-30)
+- [x] UI redesign with Teamsters branding
 - [x] Fix sign-up error (profile check timing issue)
 - [x] Hide redundant email field on sign-up form
 - [x] Run updated SQL in Supabase with `phone` field
@@ -133,11 +166,22 @@
 - [x] Fix RLS circular dependency (removed "profiles admin read" policy)
 - [x] Profile loading working (shows role, name, phone)
 - [x] Admin role assignment working (manual in Supabase)
-- [x] Update site coords to user location for geofence test
+- [x] Update site coords to user location (28.04339° N, 82.46805° W)
+- [x] Enhanced admin dashboard (shows names + phone numbers)
+- [x] Push to GitHub (clean repo, no node_modules)
 
-## Next Steps
-- [ ] **IN PROGRESS**: Fix user display in admin dashboard (name + contact vs UUID)
-- [ ] Deploy to Vercel
-- [ ] Real-world geofence test (check-in → drive away)
-- [ ] Replace placeholder logo with actual Teamsters logo PNG/SVG
-- [ ] (Future) Add address geocoding feature for easier site creation
+## Next Steps (TONIGHT - By 9pm)
+- [x] Deploy to Vercel ✅
+- [x] Update Supabase Auth Site URL ✅
+- [ ] **NOW**: Real-world geofence test (drive test)
+- [ ] Add "keep tab open" warning
+- [ ] Test mobile browser flow
+- [ ] Admin dashboard polish
+- [ ] (If time) Add Teamsters logo
+
+## Post-Demo Priorities (V2)
+- [ ] Native app for true background tracking
+- [ ] Server-side timer calculation
+- [ ] Offline support
+- [ ] Push notifications
+- [ ] Address geocoding for site creation
