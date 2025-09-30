@@ -1,0 +1,5 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="90" fill="#FFB81C" stroke="#1a1a1a" stroke-width="4"/>
+  <path d="M100 40 L120 90 L170 90 L130 120 L150 170 L100 140 L50 170 L70 120 L30 90 L80 90 Z" fill="#1a1a1a"/>
+  <text x="100" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#FFB81C" text-anchor="middle">TEAMSTERS</text>
+</svg>

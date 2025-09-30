@@ -1,0 +1,347 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { haversineMeters } from '../lib/geo'
+import Link from 'next/link'
+
+type Site = { id: string, name: string, center_lat: number, center_lng: number, radius_m: number }
+
+export default function Home() {
+  const [session, setSession] = useState<any>(null)
+  const [sites, setSites] = useState<Site[]>([])
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('')
+  const [status, setStatus] = useState<'idle'|'ready'|'in'|'paused'|'done'>('idle')
+  const [pos, setPos] = useState<{lat:number,lng:number}|null>(null)
+  const [distance, setDistance] = useState<number|null>(null)
+  const [watchId, setWatchId] = useState<number|undefined>(undefined)
+  const [attendanceId, setAttendanceId] = useState<string|null>(null)
+  const [activeSeconds, setActiveSeconds] = useState(0)
+  const tickRef = useRef<number|null>(null)
+  const [loading, setLoading] = useState(false)
+  const [profile, setProfile] = useState<any>(null)
+  const [isNewUser, setIsNewUser] = useState(false)
+  const [signUpData, setSignUpData] = useState({ fullName: '', phone: '', email: '' })
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setSession(session)
+      supabase.auth.onAuthStateChange((_event, session) => setSession(session))
+    }
+    init()
+  }, [])
+
+  useEffect(() => { (async () => {
+    if (session) {
+      const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+      console.log('🔍 Loaded profile:', prof)
+      
+      // Check for pending profile data
+      const pending = localStorage.getItem('pendingProfile')
+      if (pending && prof && !prof.full_name) {
+        const { fullName, phone } = JSON.parse(pending)
+        await supabase.from('profiles').update({
+          full_name: fullName,
+          phone: phone
+        }).eq('id', session.user.id)
+        localStorage.removeItem('pendingProfile')
+        // Refresh profile
+        const { data: updated } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+        console.log('✅ Updated profile:', updated)
+        setProfile(updated)
+      } else {
+        setProfile(prof)
+        
+        // If profile exists but has no name (old signup), prompt for it
+        if (prof && !prof.full_name) {
+          // Show sign-up form to complete profile
+          setIsNewUser(true)
+          setSignUpData({ email: session.user.email || '', fullName: '', phone: '' })
+        }
+      }
+      
+      const { data } = await supabase.from('sites').select('*').order('name')
+      setSites(data || [])
+      if (prof?.site_id) setSelectedSiteId(prof.site_id)
+      setStatus('ready')
+    }
+  })() }, [session])
+
+  // watch location when timing
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return
+    if (status === 'in' || status === 'paused') {
+      const id = navigator.geolocation.watchPosition((p)=>{
+        const coords = { lat: p.coords.latitude, lng: p.coords.longitude }
+        setPos(coords)
+      }, (err)=>{ console.error(err) }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 })
+      setWatchId(id as any)
+      return () => navigator.geolocation.clearWatch(id as any)
+    } else {
+      if (watchId) navigator.geolocation.clearWatch(watchId as any)
+      setWatchId(undefined)
+    }
+  }, [status])
+
+  // update distance + timer tick loop
+  useEffect(() => {
+    const site = sites.find(s=>s.id===selectedSiteId)
+    if (!site || !pos) return
+    const d = haversineMeters(pos.lat, pos.lng, site.center_lat, site.center_lng)
+    setDistance(d)
+    const inside = d <= site.radius_m
+    if (status === 'in' && !inside) setStatus('paused')
+    if (status === 'paused' && inside) setStatus('in')
+  }, [pos, selectedSiteId, sites, status])
+
+  useEffect(() => {
+    if (status === 'in') {
+      tickRef.current = window.setInterval(()=> setActiveSeconds(s=>s+1), 1000)
+      return () => { if (tickRef.current) window.clearInterval(tickRef.current) }
+    } else {
+      if (tickRef.current) window.clearInterval(tickRef.current)
+      tickRef.current = null
+    }
+  }, [status])
+
+  const site = useMemo(()=> sites.find(s=>s.id===selectedSiteId) || null, [sites, selectedSiteId])
+  const inside = useMemo(()=> (site && distance!=null ? distance <= site.radius_m : false), [site, distance])
+
+  async function signIn(email:string, fullName?: string, phone?: string) {
+    setLoading(true)
+    try {
+      // If name and phone provided, this is sign-up flow
+      if (fullName && phone) {
+        // Check if already logged in (completing profile)
+        if (session) {
+          // Update existing profile
+          await supabase.from('profiles').update({
+            full_name: fullName,
+            phone: phone
+          }).eq('id', session.user.id)
+          
+          // Refresh profile
+          const { data: updated } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+          setProfile(updated)
+          setIsNewUser(false)
+          return
+        }
+        
+        // Send magic link for new user
+        const { error } = await supabase.auth.signInWithOtp({ email })
+        if (error) throw error
+        
+        // Store name/phone to update profile after magic link click
+        localStorage.setItem('pendingProfile', JSON.stringify({ fullName, phone }))
+        alert('Check your email for the magic link.')
+        setIsNewUser(false)
+        return
+      }
+
+      // For MVP: Just send magic link (can't check profile due to RLS when not authenticated)
+      const { error } = await supabase.auth.signInWithOtp({ email })
+      if (error) throw error
+      
+      alert('Check your email for the magic link.')
+    } catch (e: any) {
+      alert(e.message || String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCheckIn() {
+    if (!site) return alert('Pick a site first.')
+    setLoading(true)
+    try {
+      // Ensure location permission by reading once
+      await new Promise<void>((resolve, reject) => {
+        if (!('geolocation' in navigator)) return reject(new Error('Geolocation not supported.'))
+        navigator.geolocation.getCurrentPosition((p)=>{
+          setPos({ lat: p.coords.latitude, lng: p.coords.longitude })
+          resolve()
+        }, (err)=> reject(err), { enableHighAccuracy: true, timeout: 10000 })
+      })
+      // create attendance row
+      const { data, error } = await supabase.from('attendances').insert({
+        user_id: session.user.id,
+        site_id: site.id,
+      }).select('id').single()
+      if (error) throw error
+      setAttendanceId(data.id)
+      setActiveSeconds(0)
+      setStatus('in')
+    } catch (e:any) {
+      alert(e.message || String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function formatTime(s:number) {
+    const h = Math.floor(s/3600).toString().padStart(2,'0')
+    const m = Math.floor((s%3600)/60).toString().padStart(2,'0')
+    const ss = Math.floor(s%60).toString().padStart(2,'0')
+    return `${h}:${m}:${ss}`
+  }
+
+  async function handleClockOut() {
+    if (!attendanceId || !site) return
+    setLoading(true)
+    try {
+      // last location check
+      const p = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+      })
+      const last = { lat: p.coords.latitude, lng: p.coords.longitude }
+      const { error } = await supabase.from('attendances').update({
+        ended_at: new Date().toISOString(),
+        seconds_inside: activeSeconds,
+        last_lat: last.lat,
+        last_lng: last.lng,
+      }).eq('id', attendanceId)
+      if (error) throw error
+      setStatus('done')
+    } catch (e:any) {
+      alert(e.message || String(e))
+      setLoading(false)
+    }
+  }
+
+  if (!session) {
+    return (
+      <div className="container">
+        <div className="logo-header">
+          <img src="/teamsters-logo.svg" alt="Teamsters Logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <h1>Union Picket Check-In</h1>
+          <p>Track your time on the line</p>
+        </div>
+        <div className="card main-card">
+          {!isNewUser ? (
+            <>
+              <h2>Sign In</h2>
+              <p style={{marginBottom: '24px', color: '#9ca3af'}}>Enter your email to get a magic link</p>
+              <div className="form-group">
+                <input 
+                  type="email"
+                  placeholder="your@email.com" 
+                  value={signUpData.email}
+                  onChange={(e)=> setSignUpData({...signUpData, email: e.target.value})} 
+                />
+              </div>
+              <button 
+                style={{width: '100%'}} 
+                disabled={loading}
+                onClick={()=> signUpData.email ? signIn(signUpData.email) : alert('Enter email')}
+              >
+                {loading ? 'Sending...' : 'Send Magic Link'}
+              </button>
+            </>
+          ) : (
+            <>
+              <h2>Complete Sign Up</h2>
+              <p style={{marginBottom: '24px', color: '#9ca3af'}}>First time? Tell us about yourself</p>
+              <div className="form-group">
+                <label>Full Name</label>
+                <input 
+                  type="text"
+                  placeholder="John Doe" 
+                  value={signUpData.fullName}
+                  onChange={(e)=> setSignUpData({...signUpData, fullName: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Phone Number</label>
+                <input 
+                  type="tel"
+                  placeholder="(555) 123-4567" 
+                  value={signUpData.phone}
+                  onChange={(e)=> setSignUpData({...signUpData, phone: e.target.value})} 
+                />
+              </div>
+              <div className="row" style={{gap: '12px'}}>
+                <button 
+                  className="secondary"
+                  style={{flex: 1}}
+                  onClick={()=> { setIsNewUser(false); setSignUpData({fullName: '', phone: '', email: ''}) }}
+                >
+                  Back
+                </button>
+                <button 
+                  style={{flex: 1}}
+                  disabled={loading || !signUpData.fullName || !signUpData.phone}
+                  onClick={()=> signIn(signUpData.email, signUpData.fullName, signUpData.phone)}
+                >
+                  {loading ? 'Sending...' : 'Continue'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        <footer>Demo build — works in the foreground. For background tracking we'll ship native.</footer>
+      </div>
+    )
+  }
+
+  return (
+    <div className="container" style={{justifyContent: 'flex-start', paddingTop: '40px'}}>
+      <div className="logo-header">
+        <img src="/teamsters-logo.svg" alt="Teamsters Logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+      </div>
+      
+      <div className="card">
+        <div className="row" style={{justifyContent:'space-between', alignItems:'center', flexWrap: 'wrap'}}>
+          <div style={{flex: 1, minWidth: '200px'}}>
+            <strong>{profile?.full_name || session.user.email}</strong>
+            {profile?.role === 'admin' && <span className="badge" style={{marginLeft: '8px'}}>ADMIN</span>}
+          </div>
+          <div className="row" style={{gap: '8px'}}>
+            {profile?.role === 'admin' && <Link href="/admin"><button className="secondary">Admin</button></Link>}
+            <button className="secondary" onClick={()=> supabase.auth.signOut()}>Sign out</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Select Site</h3>
+        <select value={selectedSiteId} onChange={(e)=> setSelectedSiteId(e.target.value)}>
+          <option value="">-- Select a picket site --</option>
+          {sites.map(s => <option key={s.id} value={s.id}>{s.name} (r={s.radius_m}m)</option>)}
+        </select>
+      </div>
+
+      <div className="card main-card">
+        <h2 style={{marginBottom: '20px'}}>Picket Time Tracker</h2>
+        <div className="status" style={{marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px'}}>
+          <div className={'dot ' + (inside ? 'ok' : '')} />
+          <div>
+            <strong>{inside ? 'Inside' : 'Outside'}</strong> geofence
+            {distance!=null && site && <span style={{color: '#9ca3af', marginLeft: '8px'}}>~{distance.toFixed(0)}m from center</span>}
+          </div>
+        </div>
+        <div style={{textAlign: 'center', margin: '24px 0'}}>
+          <div style={{fontSize: '48px', fontWeight: 'bold', color: 'var(--teamster-gold)', fontFamily: 'monospace'}}>
+            {formatTime(activeSeconds)}
+          </div>
+          <p className="small" style={{marginTop: '8px'}}>Timer runs only when you're inside the radius and this page is open.</p>
+        </div>
+        <div className="row" style={{gap: '12px'}}>
+          <button 
+            style={{flex: 1}} 
+            disabled={!selectedSiteId || status==='in' || loading} 
+            onClick={handleCheckIn}
+          >
+            {loading ? 'Starting...' : 'Check In'}
+          </button>
+          <button 
+            style={{flex: 1}}
+            className="secondary"
+            disabled={status!=='in' && status!=='paused'} 
+            onClick={handleClockOut}
+          >
+            Clock Out
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
