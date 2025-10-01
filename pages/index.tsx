@@ -369,34 +369,9 @@ export default function Home() {
       }).eq('id', attendanceId)
       if (error) throw error
 
-      // Query all sessions from today to show daily summary
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      const { data: allTodaySessions } = await supabase
-        .from('attendances')
-        .select('seconds_inside')
-        .eq('user_id', session?.user.id)
-        .gte('started_at', todayStart.toISOString())
-        .not('ended_at', 'is', null)
-
-      const totalTodaySeconds = (allTodaySessions || []).reduce((sum, s) => sum + (s.seconds_inside || 0), 0)
-      const totalHours = (totalTodaySeconds / 3600).toFixed(1)
-      const sessionCount = allTodaySessions?.length || 0
-      const remainingHours = Math.max(0, 7 - parseFloat(totalHours))
-
-      let message = `✅ Clocked out successfully!\n\n`
-      message += `This session: ${formatTime(totalSeconds)}\n`
-      if (sessionCount > 1) {
-        message += `Total today: ${totalHours} hrs (${sessionCount} sessions)\n`
-      } else {
-        message += `Total today: ${totalHours} hrs\n`
-      }
-      if (remainingHours > 0) {
-        message += `\nYou can clock back in. ${remainingHours.toFixed(1)} hrs remaining to reach 7 hours.`
-      } else {
-        message += `\n🎉 You've completed your 7-hour shift for today!`
-      }
-      alert(message)
+      // Show simple success message
+      const sessionHours = (totalSeconds / 3600).toFixed(1)
+      alert(`✅ Clocked out successfully!\n\nThis session: ${formatTime(totalSeconds)} (${sessionHours} hrs)\n\nCheck the app to see your total time for today.`)
 
       // Release wake lock when clocking out
       if (wakeLockRef.current) {
