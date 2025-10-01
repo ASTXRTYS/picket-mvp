@@ -384,6 +384,20 @@ export default function Home() {
     )
   }
 
+  if (session && !profile) {
+    return (
+      <div className="container">
+        <div className="logo-header">
+          <img src="/teamsters-logo.svg" alt="Teamsters Logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <h1>Union Picket Check-In</h1>
+        </div>
+        <div className="card main-card">
+          <p style={{textAlign: 'center', color: '#9ca3af'}}>Loading your profile…</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container" style={{justifyContent: 'flex-start', paddingTop: '40px'}}>
       <div className="logo-header">
