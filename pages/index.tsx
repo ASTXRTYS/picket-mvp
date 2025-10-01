@@ -17,6 +17,7 @@ export default function Home() {
   const [attendanceId, setAttendanceId] = useState<string|null>(null)
   const [activeSeconds, setActiveSeconds] = useState(0)
   const tickRef = useRef<number|null>(null)
+  const wakeLockRef = useRef<any>(null)
   const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState<any>(null)
   const [profileResolved, setProfileResolved] = useState(false)
@@ -242,6 +243,20 @@ export default function Home() {
       if (error) throw error
       setAttendanceId(data.id)
       setActiveSeconds(0)
+
+      // Request wake lock to keep screen on during shift
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
+          console.log('✅ Wake lock active - screen will stay on')
+        } else {
+          console.warn('⚠️ Wake Lock API not supported - please disable auto-lock in settings')
+        }
+      } catch (wakeLockErr) {
+        console.error('Failed to acquire wake lock:', wakeLockErr)
+        // Continue anyway - wake lock is nice-to-have, not required
+      }
+
       setStatus('in')
     } catch (e:any) {
       alert(e.message || String(e))
@@ -273,6 +288,18 @@ export default function Home() {
         last_lng: last.lng,
       }).eq('id', attendanceId)
       if (error) throw error
+
+      // Release wake lock when clocking out
+      if (wakeLockRef.current) {
+        try {
+          await wakeLockRef.current.release()
+          wakeLockRef.current = null
+          console.log('✅ Wake lock released')
+        } catch (wakeLockErr) {
+          console.error('Failed to release wake lock:', wakeLockErr)
+        }
+      }
+
       setStatus('done')
     } catch (e:any) {
       alert(e.message || String(e))
@@ -303,12 +330,12 @@ export default function Home() {
                   onChange={(e)=> setSignUpData({...signUpData, email: e.target.value})} 
                 />
               </div>
-              <button 
-                style={{width: '100%'}} 
+              <button
+                style={{width: '100%'}}
                 disabled={loading}
                 onClick={()=> signUpData.email ? signIn(signUpData.email) : alert('Enter email')}
               >
-                {loading ? 'Sending...' : 'Send Magic Link'}
+                {loading ? 'Sending...' : 'Sign In'}
               </button>
               <button
                 className="secondary"
@@ -514,7 +541,10 @@ export default function Home() {
             fontSize: '14px',
             textAlign: 'center'
           }}>
-            ⚠️ Keep this tab open during your shift for accurate tracking
+            📍 Location tracking active • Your screen will stay on during your shift
+            <div style={{fontSize: '12px', marginTop: '4px', fontWeight: '400'}}>
+              Keep this app open for accurate tracking. Consider plugging in your device.
+            </div>
           </div>
         )}
         

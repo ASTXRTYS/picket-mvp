@@ -175,20 +175,135 @@ create policy "profiles self insert" on public.profiles
 - ✅ Geofence tracking
 - ✅ Admin dashboard
 
-## 🔬 Active Research (In Progress)
-**Question**: Is pure-web background location tracking viable for MVP, or do we need to pivot?
+## 🔬 Background Tracking Research - COMPLETED (2025-09-30 23:45)
 
-**Research Context Provided**:
-- Tech stack: Next.js 14 PWA, Vercel, Supabase
-- Current implementation: `navigator.geolocation.watchPosition` (stops when tab closes)
-- Requirement: Track location every 2-3 minutes ONLY while user clocked in
-- Constraint: NO native wrappers (Capacitor/Cordova) - must stay pure web for MVP
-- Critical platform: iOS Safari (most restrictive - if it works there, works everywhere)
+### Research Question
+Is pure-web background location tracking viable for MVP, or do we need to pivot?
 
-**Fallback Strategy if Research Says "No"**:
-- PWA with "Add to Home Screen" prompt
-- Screen Wake Lock API to prevent sleep
-- Accept "keep tab open" limitation for demo, document as V2 native app requirement
+### Research Findings ✅
+
+**VERDICT**: True background tracking NOT possible in PWAs (especially iOS Safari)
+
+**Key Limitations**:
+- Service Workers **CANNOT** access Geolocation API directly
+- iOS Safari does NOT support Background Sync, Background Fetch, or Periodic Sync APIs
+- Web Push cannot silently retrieve GPS coordinates (requires user interaction)
+- PWAs suspend when app not in foreground on iOS (screen locked or tab closed)
+- Android Chrome has better support, but iOS Safari is the limiting factor
+
+**Community Consensus**: "Continuous background GPS tracking and geofencing are not possible as of now with PWAs alone" - need native app for true background tracking
+
+### ✅ APPROVED SOLUTION: Foreground PWA + Screen Wake Lock
+
+**Implementation Strategy**:
+1. **Screen Wake Lock API** - Keep device awake during clocked-in sessions
+   - Supported: Safari iOS 16.4+, Chrome 85+
+   - Prevents screen from sleeping while tracking
+   - Battery impact: Users must keep screen on (warn them)
+
+2. **"Add to Home Screen"** - Install PWA for app-like experience
+   - Runs in standalone window (no browser UI)
+   - Better user perception (feels native)
+   - Required for best iOS experience
+
+3. **Foreground Tracking Only** - Accept that app must stay open
+   - Clear user instructions: "Keep app open during shift"
+   - Show warning banner while tracking active
+   - Only track when explicitly clocked in
+
+4. **Timeout Fallback** - Server-side safety net
+   - If no location pings for 5-10 minutes → auto clock-out
+   - Prevents stuck sessions if user closes app
+   - Handles lost connectivity gracefully
+
+**Trade-offs Accepted**:
+- ❌ True background tracking (not possible in web)
+- ✅ Foreground-only tracking (acceptable for MVP)
+- ✅ Battery drain from screen-on (user warned)
+- ✅ User cooperation required (keep app open)
+- ✅ Works on iOS Safari = works everywhere
+
+**Why This Works for MVP**:
+- No native app needed (no App Store submission)
+- Simple web deployment (Vercel)
+- Fast iteration (no platform-specific code)
+- Users are aware of tracking (transparency)
+- Shifts are time-bounded (not 24/7 tracking)
+
+**V2 Consideration**:
+- If usage scales → offer optional native iOS app with true background location
+- Monitor iOS WebKit improvements (geofencing API may come later)
+- For now: web-only approach is best for MVP constraints
+
+## 🚀 Wake Lock Implementation - COMPLETED (2025-09-30 23:55)
+
+### Implementation Status ✅
+
+**Wake Lock API Integrated** (pages/index.tsx)
+- Added `wakeLockRef` to store wake lock sentinel (line 20)
+- Request wake lock on check-in (lines 247-258)
+  - Acquires screen wake lock after successful attendance creation
+  - Graceful fallback if API not supported (console warning)
+  - Error handling prevents check-in failure if wake lock fails
+- Release wake lock on clock-out (lines 292-301)
+  - Releases sentinel when user clocks out
+  - Cleans up reference for next session
+  - Handles errors gracefully
+
+**User Instructions Added** (pages/index.tsx:543-547)
+- Enhanced warning banner shown during active tracking
+- Primary message: "📍 Location tracking active • Your screen will stay on during your shift"
+- Secondary guidance: "Keep this app open for accurate tracking. Consider plugging in your device."
+- Clear, transparent communication about battery impact
+
+**Browser Support**:
+- ✅ Safari iOS 16.4+ (target platform)
+- ✅ Chrome 85+ (Android & desktop)
+- ⚠️ Fallback message for older browsers (console warning to disable auto-lock)
+
+### What Users Will Experience
+
+**During Check-In**:
+1. User clicks "Check In"
+2. Location permission requested (if first time)
+3. Attendance record created in database
+4. Wake lock activated → screen stays on
+5. Yellow banner shows: tracking active + screen awake
+6. Timer starts counting
+
+**During Shift**:
+- Screen remains on (no auto-lock)
+- Location polled continuously via watchPosition
+- Geofence checked at each update
+- If user leaves geofence → status changes to "paused"
+- If user returns → status resumes to "in"
+- Timer only counts while inside geofence
+
+**During Clock-Out**:
+1. User clicks "Clock Out"
+2. Final location captured
+3. Attendance updated with end time + total seconds
+4. Wake lock released → screen auto-lock re-enabled
+5. Status set to "done"
+
+### Remaining Tasks
+
+**Server-Side Timeout Fallback** (TODO - Post-MVP):
+- Implementation: Edge function or cron job
+- Logic: Check attendances table for sessions with no recent updates
+- Criteria: If `ended_at IS NULL` AND last update > 10 minutes ago
+- Action: Auto-set `ended_at` to prevent stuck sessions
+- Deployment: Supabase Edge Function or Vercel Cron
+- Priority: Nice-to-have for MVP, critical for production
+
+**Testing Checklist**:
+- [ ] Test on iPhone with iOS 16.4+ (Safari)
+- [ ] Test on Android with Chrome
+- [ ] Verify wake lock prevents screen sleep
+- [ ] Verify wake lock releases on clock-out
+- [ ] Test battery drain over 1-hour session
+- [ ] Test what happens if user force-closes app
+- [ ] Test geofence exit detection accuracy
 
 ## 🎯 Revised Scope Based on Research Outcome
 **IF background tracking viable → Implement + AI agent (90 min)**
