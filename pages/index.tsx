@@ -348,15 +348,15 @@ export default function Home() {
 
       // PHASE 4: Calculate ACTUAL elapsed time from database
       // Fetch the session start time to calculate true elapsed seconds
-      const { data: session } = await supabase
+      const { data: currentAttendance } = await supabase
         .from('attendances')
         .select('started_at')
         .eq('id', attendanceId)
         .single()
 
-      if (!session) throw new Error('Session not found')
+      if (!currentAttendance) throw new Error('Session not found')
 
-      const startTime = new Date(session.started_at)
+      const startTime = new Date(currentAttendance.started_at)
       const endTime = new Date()
       const totalSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000)
 

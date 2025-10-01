@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import Link from 'next/link'
 
 type Site = { id: string, name: string, center_lat: number, center_lng: number, radius_m: number }
-type Profile = { id: string, email?: string, full_name?: string, phone?: string, role: 'worker'|'admin', site_id?: string, attendance?: {started_at: string, active_seconds: number} }
+type Profile = { id: string, email?: string, full_name?: string, phone?: string, role: 'worker'|'admin', site_id?: string, attendance?: {started_at: string, active_seconds: number, session_count?: number} }
 
 export default function Admin() {
   const [session, setSession] = useState<any>(null)
@@ -99,7 +99,6 @@ export default function Admin() {
       setOnDuty(onDutyWorkers)
 
       // TODAY'S ATTENDANCE - Get all completed shifts today at this site
-      const start = new Date(); start.setHours(0,0,0,0)
       const end = new Date(); end.setHours(23,59,59,999)
       
       console.log('🔍 Querying today attendances for site:', site.id)
