@@ -307,6 +307,127 @@ Is pure-web background location tracking viable for MVP, or do we need to pivot?
 - [ ] Test what happens if user force-closes app
 - [ ] Test geofence exit detection accuracy
 
+## 🚨 CRITICAL RESEARCH - True Background Tracking (2025-09-31 00:00)
+
+### User Requirement
+Workers check in ONCE, close phone, and tracking continues automatically. App-open requirement is NOT acceptable for stakeholder demo at 9am.
+
+### Research Results: Native Wrapper Required
+
+**Option 1: Capacitor + Background Geolocation Plugin** ⚠️ REQUIRES MAC
+
+**Free Solution** (@capacitor-community/background-geolocation):
+- Open source, supports iOS background location
+- Works with Capacitor v6 + Next.js
+- Requires iOS "Always" location permission
+
+**Implementation Steps**:
+1. Install Capacitor in Next.js project (30 min)
+2. Configure for static export (`output: 'export'`)
+3. Add background-geolocation plugin (15 min)
+4. Configure iOS permissions in Info.plist
+5. Build iOS app in Xcode (REQUIRES MAC)
+6. Deploy to TestFlight for demo (no review for internal testing <100 users)
+7. Test on physical device
+
+**Time Estimate**: 4-6 hours (if you have Mac + Apple Developer account)
+
+**BLOCKERS**:
+- ❌ Requires macOS + Xcode for iOS build
+- ❌ Requires Apple Developer account ($99/year)
+- ❌ Cloud build services (Appflow/Xcode Cloud) require setup time
+- ⚠️ Risk: Never tested background geolocation with this stack
+
+**Commercial Alternative** (@transistorsoft/capacitor-background-geolocation):
+- More sophisticated, battery-optimized
+- Works FREE in DEBUG mode (perfect for demo!)
+- Same Mac/Xcode requirements
+
+### Critical Question for User
+
+**DO YOU HAVE ACCESS TO:**
+1. A Mac computer? (required for iOS builds)
+2. Apple Developer account? (needed for TestFlight, $99 if not)
+3. iPhone for testing? (required to verify background tracking)
+
+**If YES to all three → Capacitor iOS path is viable (4-6 hour implementation)**
+**If NO to any → See alternative options below**
+
+### Option 2: Capacitor + Android Only ✅ NO MAC NEEDED
+
+**Key Advantage**: Can build Android apps on Windows/Linux (no Mac required!)
+
+**Requirements**:
+- Android Studio 2024.2.1+ (free download)
+- Android SDK (included with Android Studio)
+- Android phone for testing
+- Google Play Console account ($25 one-time fee) - optional for demo
+
+**Implementation Steps**:
+1. Install Capacitor in Next.js project (30 min)
+2. Install Android Studio + Android SDK (30 min if not installed)
+3. Add background-geolocation plugin (15 min)
+4. Configure Android permissions (AndroidManifest.xml)
+5. Build Android APK (20 min)
+6. Install APK on Android phone for testing (5 min)
+
+**Time Estimate**: 3-4 hours
+
+**Demo Strategy**:
+- Demo with Android phones (many workers likely have Android)
+- Tell stakeholders: "iOS version in development, launching next week"
+- Android has 70%+ market share among union workers (working-class demographic)
+
+**Viability**: HIGH - Can start immediately if you have Android Studio or can install it
+
+### Option 3: Web-Based Workarounds (No Native App)
+
+If native app isn't possible by 9am, here are demo-friendly alternatives:
+
+**A) Check-In/Check-Out Verification** (30 min to implement):
+- Verify GPS location at check-in ✓
+- Verify GPS location at check-out ✓
+- Trust user was present in between
+- Admin dashboard shows: "Checked in at 8:05 AM (Location: verified), Checked out at 4:45 PM (Location: verified)"
+- For demo: show estimated path on map between check-in/out points
+
+**B) Periodic Manual Confirmation** (1-2 hours to implement):
+- Web push notifications every 30 minutes: "Tap to confirm you're still at site"
+- User taps notification → captures location automatically
+- If no response after 2 reminders → flag for admin review
+- Requires PWA install + notification permissions
+- Not true background tracking but shows location sampling
+
+**C) QR Code Presence Verification** (1 hour to implement):
+- Generate unique QR codes for each picket site
+- Workers scan QR code every hour to confirm presence
+- Each scan captures GPS location automatically
+- Admin sees timeline: "8:00 AM - Scan 1, 9:00 AM - Scan 2, etc."
+- Simple, reliable, no background tracking needed
+
+### Recommended Path Forward (By Priority)
+
+**1. Android App (if you can install Android Studio)** - 3-4 hours
+   - Real background tracking
+   - No Mac needed
+   - Works for majority of workers
+   - Professional solution
+
+**2. iOS App via Capacitor (if you have Mac)** - 4-6 hours
+   - Real background tracking
+   - TestFlight for demo
+   - Covers iPhone users
+
+**3. Check-In/Check-Out Only** - 30 minutes
+   - Fastest implementation
+   - Good enough for demo
+   - Can add real tracking post-demo
+
+**4. Web Push Confirmation** - 1-2 hours
+   - Shows location tracking capability
+   - Less intrusive than keeping app open
+   - Demonstrates technical sophistication
+
 ## 🎯 Revised Scope Based on Research Outcome
 **IF background tracking viable → Implement + AI agent (90 min)**
 **IF NOT viable → Focus on AI agent only + polish existing UX (45 min)**
