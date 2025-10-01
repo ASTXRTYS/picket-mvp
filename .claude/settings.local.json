@@ -5,7 +5,8 @@
       "Bash(xargs kill:*)",
       "Bash(rm:*)",
       "Bash(npm run dev:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(vercel:*)"
     ],
     "deny": [],
     "ask": []

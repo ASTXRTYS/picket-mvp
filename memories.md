@@ -98,10 +98,42 @@
 
 ---
 
+## ✅ SESSION PERSISTENCE FIXED (4:10 AM)
+
+**Problem Solved**: Workers can now clock in/out multiple times per day and see cumulative time toward 7-hour goal.
+
+**Root Cause**: Database schema was CORRECT (multiple attendance records = good audit trail), but UI layer didn't aggregate same-day sessions.
+
+**Fixes Applied**:
+
+1. **Worker UI (`pages/index.tsx:127-186`)** - Aggregates all same-day sessions
+   - On page load: Query completed sessions from today + add to active session time
+   - Timer shows cumulative time: "6:30:00" instead of resetting to "0:00:00" after break
+   - If no active session but worked earlier: Shows completed time (e.g., "3:45:00 worked so far")
+
+2. **Admin Panel - Today's Attendance (`pages/admin.tsx:106-128`)** - Fixed Map aggregation
+   - Changed from OVERWRITE to ACCUMULATE: `existing.active_seconds += att.seconds_inside`
+   - Displays: "John Doe: 6.2 hrs (3 sessions)" instead of only showing last session
+   - Gives admins accurate view of who's hitting 7-hour requirement
+
+3. **Admin Panel - Currently On Duty (`pages/admin.tsx:72-99`)** - Added daily context
+   - Shows both current session time AND total time today
+   - Example: "This session: 1:30:00" + "Total today: 3:45:00 (includes 2:15:00 from earlier)"
+   - Helps admins see if worker is close to 7-hour goal
+
+4. **Clock-Out Feedback (`pages/index.tsx:372-399`)** - Daily summary on clock-out
+   - Alert shows: This session time, total today, session count, hours remaining
+   - Example: "✅ Clocked out! This session: 2:30:00 | Total today: 6.5 hrs (2 sessions) | 0.5 hrs remaining to reach 7 hours"
+   - Worker knows exactly where they stand
+
+**Key Insight**: Session continuity ≠ single database record. Multiple records with UI aggregation = better UX + audit trail.
+
+---
+
 ## 🎯 REMAINING TASKS (Priority Order)
 
 ### 1. AI Admin Copilot (90 min) - PRIMARY GOAL
-**Status**: Research complete. Ready to implement.
+**Status**: Deferred until session persistence is tested.
 
 **Implementation Plan (Timeboxed: 60-90 min)**:
 

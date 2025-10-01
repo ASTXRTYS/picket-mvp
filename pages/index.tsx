@@ -140,15 +140,48 @@ export default function Home() {
             setAttendanceId(existingSession.id)
             setSelectedSiteId(existingSession.site_id)
 
-            // Calculate elapsed time
+            // Calculate elapsed time from active session + any completed sessions today
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const { data: todaySessions } = await supabase
+              .from('attendances')
+              .select('started_at, ended_at, seconds_inside')
+              .eq('user_id', session.user.id)
+              .gte('started_at', today.toISOString())
+              .not('ended_at', 'is', null)
+
+            // Sum up completed sessions today
+            const completedSeconds = (todaySessions || []).reduce((sum, s) => sum + (s.seconds_inside || 0), 0)
+
+            // Add current active session time
             const startTime = new Date(existingSession.started_at)
             const now = new Date()
-            const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
-            setActiveSeconds(elapsedSeconds)
+            const currentSessionSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
+
+            const totalSeconds = completedSeconds + currentSessionSeconds
+            setActiveSeconds(totalSeconds)
+            console.log(`📊 Total time today: ${totalSeconds}s (${completedSeconds}s completed + ${currentSessionSeconds}s active)`)
 
             // Set status to indicate session exists but not actively tracking
             setStatus('paused')
           } else {
+            // No active session, but check if they worked earlier today
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const { data: todaySessions } = await supabase
+              .from('attendances')
+              .select('started_at, ended_at, seconds_inside, site_id')
+              .eq('user_id', session.user.id)
+              .gte('started_at', today.toISOString())
+              .not('ended_at', 'is', null)
+
+            if (todaySessions && todaySessions.length > 0) {
+              // They have completed sessions today
+              const totalSeconds = todaySessions.reduce((sum, s) => sum + (s.seconds_inside || 0), 0)
+              setActiveSeconds(totalSeconds)
+              setSelectedSiteId(todaySessions[0].site_id)
+              console.log(`📊 Found ${todaySessions.length} completed session(s) today, total: ${totalSeconds}s`)
+            }
             setStatus('ready')
           }
         }
@@ -335,6 +368,35 @@ export default function Home() {
         last_lng: last.lng,
       }).eq('id', attendanceId)
       if (error) throw error
+
+      // Query all sessions from today to show daily summary
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const { data: allTodaySessions } = await supabase
+        .from('attendances')
+        .select('seconds_inside')
+        .eq('user_id', session?.user.id)
+        .gte('started_at', todayStart.toISOString())
+        .not('ended_at', 'is', null)
+
+      const totalTodaySeconds = (allTodaySessions || []).reduce((sum, s) => sum + (s.seconds_inside || 0), 0)
+      const totalHours = (totalTodaySeconds / 3600).toFixed(1)
+      const sessionCount = allTodaySessions?.length || 0
+      const remainingHours = Math.max(0, 7 - parseFloat(totalHours))
+
+      let message = `✅ Clocked out successfully!\n\n`
+      message += `This session: ${formatTime(totalSeconds)}\n`
+      if (sessionCount > 1) {
+        message += `Total today: ${totalHours} hrs (${sessionCount} sessions)\n`
+      } else {
+        message += `Total today: ${totalHours} hrs\n`
+      }
+      if (remainingHours > 0) {
+        message += `\nYou can clock back in. ${remainingHours.toFixed(1)} hrs remaining to reach 7 hours.`
+      } else {
+        message += `\n🎉 You've completed your 7-hour shift for today!`
+      }
+      alert(message)
 
       // Release wake lock when clocking out
       if (wakeLockRef.current) {

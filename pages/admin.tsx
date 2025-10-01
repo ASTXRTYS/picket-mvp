@@ -69,16 +69,32 @@ export default function Admin() {
         alert('Error loading active workers: ' + activeError.message)
       }
 
-      // Calculate elapsed time for each active session
-      const onDutyWorkers = (activeAttendances || []).map(att => {
+      // Calculate elapsed time for each active session INCLUDING completed sessions from today
+      const start = new Date(); start.setHours(0,0,0,0)
+      const onDutyWorkers = await Promise.all((activeAttendances || []).map(async att => {
         const startTime = new Date(att.started_at)
         const now = new Date()
-        const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
+        const currentSessionSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
+
+        // Get completed sessions from today for this user
+        const { data: completedToday } = await supabase
+          .from('attendances')
+          .select('seconds_inside')
+          .eq('user_id', att.user_id)
+          .eq('site_id', site.id)
+          .gte('started_at', start.toISOString())
+          .not('ended_at', 'is', null)
+
+        const completedSeconds = (completedToday || []).reduce((sum, s) => sum + (s.seconds_inside || 0), 0)
+        const totalSeconds = completedSeconds + currentSessionSeconds
+
         return {
           ...att,
-          elapsed: elapsedSeconds
+          elapsed: currentSessionSeconds,
+          totalToday: totalSeconds,
+          completedToday: completedSeconds
         }
-      })
+      }))
       console.log('👷 On duty workers:', onDutyWorkers)
       setOnDuty(onDutyWorkers)
 
@@ -103,7 +119,7 @@ export default function Admin() {
         alert('Error loading today attendances: ' + todayError.message)
       }
 
-      // Group by user_id (in case someone checked in multiple times today)
+      // Group by user_id and SUM all sessions (in case someone checked in multiple times today)
       const userMap = new Map()
       ;(todayAtts || []).forEach(att => {
         const userId = att.user_id
@@ -115,9 +131,15 @@ export default function Admin() {
             email: att.profiles?.email,
             attendance: {
               started_at: att.started_at,
-              active_seconds: att.seconds_inside
+              active_seconds: att.seconds_inside || 0,
+              session_count: 1
             }
           })
+        } else {
+          // Accumulate seconds from multiple sessions
+          const existing = userMap.get(userId)
+          existing.attendance.active_seconds += (att.seconds_inside || 0)
+          existing.attendance.session_count += 1
         }
       })
 
@@ -171,8 +193,13 @@ export default function Admin() {
                   <div style={{fontSize: '12px', color: '#6b7280', marginTop: '4px'}}>
                     Checked in: {new Date(worker.started_at).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}
                     {' • '}
-                    Elapsed: {formatTime(worker.elapsed)}
+                    This session: {formatTime(worker.elapsed)}
                   </div>
+                  {worker.completedToday > 0 && (
+                    <div style={{fontSize: '12px', color: '#10b981', marginTop: '2px', fontWeight: '500'}}>
+                      Total today: {formatTime(worker.totalToday)} (includes {formatTime(worker.completedToday)} from earlier)
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -196,9 +223,10 @@ export default function Admin() {
                     {p.phone && <div style={{fontSize: '13px', color: '#9ca3af'}}>{p.phone}</div>}
                     {p.attendance && (
                       <div style={{fontSize: '12px', color: '#6b7280', marginTop: '4px'}}>
-                        Checked in: {new Date(p.attendance.started_at).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}
-                        {' • '}
                         {(p.attendance.active_seconds / 3600).toFixed(1)} hrs
+                        {p.attendance.session_count > 1 && ` (${p.attendance.session_count} sessions)`}
+                        {' • '}
+                        First check-in: {new Date(p.attendance.started_at).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}
                       </div>
                     )}
                   </td>
