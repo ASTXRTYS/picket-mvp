@@ -113,11 +113,18 @@
 - **Fix**: Simplified logic - just send magic link for all users (no pre-auth profile check)
 - **Result**: Returning users now get magic link directly without sign-up form
 
-## Current Status (2025-09-30 20:00)
-- **Production**: https://local79.vercel.app ✅ LIVE & WORKING
-- **Blocker**: "Keep window open" requirement = poor UX, not demo-ready
-- **Core Dilemma**: Web PWAs cannot reliably track background location (especially iOS Safari)
-- **State**: ⏸️ PAUSED - Waiting on external research to determine feasibility
+## Current Status (2025-09-30 21:31)
+- **Production**: https://local79.vercel.app ✅ DEPLOYED
+- **CRITICAL BUG**: Sign-up form (name/phone) not appearing for new users
+- **Root Cause**: Profile created by trigger with only email, app not detecting and showing form
+- **Impact**: Users can log in but have no name/phone in profile → admin dashboard shows incomplete data
+
+## What's Broken
+1. User signs up with email → magic link sent ✅
+2. Trigger creates profile with ONLY email (no name/phone) ✅
+3. User logs in → App should detect empty `full_name` and show "Complete Sign Up" form ❌
+4. Instead: App goes straight to site selection page ❌
+5. Result: Profiles exist but are incomplete (no full_name, no phone)
 
 ## 🔬 Active Research (In Progress)
 **Question**: Is pure-web background location tracking viable for MVP, or do we need to pivot?

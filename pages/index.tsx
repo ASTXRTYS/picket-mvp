@@ -298,6 +298,69 @@ export default function Home() {
     )
   }
 
+  // If logged in but profile incomplete, show completion form
+  if (session && profile && !profile.full_name) {
+    return (
+      <div className="container">
+        <div className="logo-header">
+          <img src="/teamsters-logo.svg" alt="Teamsters Logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <h1>Union Picket Check-In</h1>
+          <p>Track your time on the line</p>
+        </div>
+        <div className="card main-card">
+          <h2>Complete Your Profile</h2>
+          <p style={{marginBottom: '24px', color: '#9ca3af'}}>Please provide your information to continue</p>
+          <div className="form-group">
+            <label>Full Name</label>
+            <input 
+              type="text"
+              placeholder="John Doe" 
+              value={signUpData.fullName}
+              onChange={(e)=> setSignUpData({...signUpData, fullName: e.target.value})} 
+            />
+          </div>
+          <div className="form-group">
+            <label>Phone Number</label>
+            <input 
+              type="tel"
+              placeholder="(555) 123-4567" 
+              value={signUpData.phone}
+              onChange={(e)=> setSignUpData({...signUpData, phone: e.target.value})} 
+            />
+          </div>
+          <button 
+            style={{width: '100%'}} 
+            disabled={loading}
+            onClick={async ()=> {
+              if (!signUpData.fullName || !signUpData.phone) {
+                alert('Please fill in all fields')
+                return
+              }
+              setLoading(true)
+              try {
+                await supabase.from('profiles').update({
+                  full_name: signUpData.fullName,
+                  phone: signUpData.phone
+                }).eq('id', session.user.id)
+                
+                // Refresh profile
+                const { data: updated } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+                setProfile(updated)
+                setSignUpData({ email: '', fullName: '', phone: '' })
+              } catch (e: any) {
+                alert(e.message || String(e))
+              } finally {
+                setLoading(false)
+              }
+            }}
+          >
+            {loading ? 'Saving...' : 'Continue'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container" style={{justifyContent: 'flex-start', paddingTop: '40px'}}>
       <div className="logo-header">
