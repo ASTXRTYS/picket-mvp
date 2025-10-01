@@ -82,14 +82,22 @@ export default function Admin() {
       const start = new Date(); start.setHours(0,0,0,0)
       const end = new Date(); end.setHours(23,59,59,999)
       
+      console.log('🔍 Querying today attendances for site:', site.id)
       // Get all attendances for today at this site with profile info
-      const { data: todayAtts } = await supabase
+      const { data: todayAtts, error: todayError } = await supabase
         .from('attendances')
         .select('*, profiles(id, full_name, phone, email)')
         .eq('site_id', site.id)
         .gte('started_at', start.toISOString())
         .lte('started_at', end.toISOString())
         .not('ended_at', 'is', null) // Only completed shifts
+
+      console.log('📊 Today attendances result:', { data: todayAtts, error: todayError })
+
+      if (todayError) {
+        console.error('❌ Error fetching today attendances:', todayError)
+        alert('Error loading today attendances: ' + todayError.message)
+      }
 
       // Group by user_id (in case someone checked in multiple times today)
       const userMap = new Map()

@@ -816,111 +816,43 @@ WHERE ended_at IS NULL
 - **Main**: https://local79.vercel.app
 - **Admin Dashboard**: https://local79.vercel.app/admin
 
-## 🔬 RESEARCH NEEDED (Confidence: Low)
-### 1. Background Location Tracking - Web PWA
-**Question**: Can we get persistent background geolocation after auth?
-- Service Workers + Background Sync API?
-- Geolocation API + Wake Lock API?
-- Progressive Web App (PWA) install + permissions?
-- Web Push API for periodic check-ins?
+## 🚨 CURRENT SESSION (2025-10-01 2:00-9:00 AM) - FINAL SPRINT
 
-**Research**: Need to investigate browser capabilities for:
-- iOS Safari limitations
-- Android Chrome PWA mode
-- Permission persistence after app close
+### Time: 2:51 AM | Deadline: 9:00 AM Demo | Status: DEBUGGING ADMIN DASHBOARD
 
-### 2. Timer Persistence Without Open Window
-**Current Problem**: Timer state lost when tab closes
-**Desired Behavior**: 
-- User checks in → Timer starts
-- User closes window → Timer continues server-side
-- Server periodically checks if user still in geofence
-- Timer only stops if: (a) user leaves geofence OR (b) user manually clocks out
+### ✅ Completed (2:00-2:50 AM)
+1. **Geofence Bug Fixed** - Missing negative sign on longitude (-82.38739 vs 82.38739)
+   - Worker tracking working: 52+ minutes, 68m from center, inside geofence ✓
+2. **Session Persistence** - Workers can close browser, session persists ✓
+3. **Admin Query Updated** - Changed to show workers by actual attendance (not profile assignment)
 
-**Implementation Options**:
-- Server-side cron job checking last known location?
-- Web Worker + periodic location pings?
-- Service Worker with Background Fetch?
+### ❌ BLOCKING ISSUE: Admin Dashboard 400 Errors
+**Problem**: Admin can't see currently on-duty workers
+- Both admin queries returning `400 Bad Request`
+- RLS policies blocking despite `is_admin()` function
+- Admin role verified: jason.gitdev@gmail.com = 'admin' ✓
+- Suspect: RLS on `attendances` or profile joins failing
 
-## 🤖 NEW FEATURE: AI Reporting Agent
-**Goal**: Daily attendance reports sent to Jeff & Brandon automatically
+**Debug Steps Tried**:
+1. Added console logging to admin queries
+2. Verified admin role in Supabase
+3. Checked profiles table - both site_id = NULL (expected)
 
-### Specs:
-- **Platform**: Anthropic Claude SDK (use prompt caching for cost efficiency)
-- **Budget**: $10-15 total (should last months with caching)
-- **Memory**: Use MCP memory tools for context persistence
-- **Trigger**: End of day (e.g., 8pm) or on-demand via chat interface
+**Next**: Get actual error message from console logs, fix RLS policies
 
-### Report Contents:
-1. Total workers checked in today
-2. Who didn't show up (absent)
-3. Who left early (< 7 hours)
-4. Who stayed overtime (> 8 hours)
-5. Total hours logged per person
+### 🎯 Remaining Tasks (Priority Order)
+1. **FIX ADMIN DASHBOARD** (30 min) - BLOCKING
+2. Build AI Copilot with Claude SDK (90 min) - MAIN FEATURE
+3. Add estimated clock-out time (10 min) - Nice-to-have
+4. Update memories.md - Trim to ~300 lines
+5. Final testing (30 min)
 
-### Implementation:
-- **Admin Dashboard**: Add chat box UI component
-- **Backend**: Edge function or API route
-- **Query**: Fetch attendance data from Supabase
-- **Agent**: Claude analyzes, generates natural language report
-- **Delivery**: In-app chat + optional email/SMS
+### Tech Stack
+- Next.js 14, React 18, TypeScript, Supabase
+- Production: https://local79.vercel.app
+- Auto-deploy: GitHub push → Vercel
 
-**Time Estimate**: 45 minutes to build
-
-## 📋 Action Plan (PENDING Research Results)
-### Current State: ⏸️ WAITING
-- Research query submitted to external tools
-- User is gathering insights on background location viability
-- Decision point: Once research returns, choose path A or B
-
-### Path A: If Background Tracking Viable (90 min)
-1. **Implement** chosen solution (Service Worker / Wake Lock / etc)
-2. **Remove** "keep tab open" warning
-3. **Test**: Check in → Close window → Verify tracking
-4. **Build** AI reporting agent (chat UI + Anthropic integration)
-5. **Deploy** to production
-
-### Path B: If Background Tracking NOT Viable (45 min)
-1. **Accept** limitation, add Wake Lock + "Add to Home Screen" prompt
-2. **Focus** entirely on AI reporting agent
-3. **Polish** existing UX (better messaging about keeping tab open)
-4. **Document** background tracking as V2 (native app) requirement
-5. **Deploy** to production
-
-### Next Immediate Action (Once Research Complete):
-- Update this plan based on findings
-- Execute chosen path
-- Test on actual picket line tonight
-
-## Completed Today
-- [x] Full auth + geofencing + timer
-- [x] Admin dashboard with hours/timestamps
-- [x] Deployed to Vercel
-
-## Completed Items (Session 2025-09-30)
-- [x] UI redesign with Teamsters branding
-- [x] Fix sign-up error (profile check timing issue)
-- [x] Hide redundant email field on sign-up form
-- [x] Run updated SQL in Supabase with `phone` field
-- [x] Fix Supabase URL typo (double 'ii')
-- [x] Test auth flow (WORKING!)
-- [x] Fix RLS circular dependency (removed "profiles admin read" policy)
-- [x] Profile loading working (shows role, name, phone)
-- [x] Admin role assignment working (manual in Supabase)
-- [x] Update site coords to user location (28.04339° N, 82.46805° W)
-- [x] Enhanced admin dashboard (shows names + phone numbers)
-- [x] Push to GitHub (clean repo, no node_modules)
-
-## Immediate Next Steps
-1. **Research**: Background tracking options (15 min)
-2. **Implement**: Background location persistence (30 min)
-3. **Build**: AI reporting agent (30 min)
-4. **Test**: Real picket line test tonight
-5. **Demo**: Ready for tomorrow morning
-
-## Post-Demo Priorities (V2)
-- [ ] Native app for true background tracking
-- [ ] Server-side timer calculation
-- [ ] Offline support
-- [ ] Push notifications
-- [ ] Address geocoding for site creation
+### Key Files Modified Today
+- `lib/geo.ts` - Haversine distance calculation (working)
+- `pages/index.tsx` - Worker geofence tracking (working)
+- `pages/admin.tsx` - Admin dashboard (BROKEN - RLS issue)
