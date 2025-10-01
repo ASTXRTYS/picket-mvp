@@ -677,6 +677,41 @@ WHERE ended_at IS NULL
 
 **Demo Ready**: YES - All features working on production URL
 
+## 📝 SESSION LOG (2025-10-01 00:30-00:52)
+
+### What Was Accomplished
+1. **Admin "Currently On Duty" Feature** (Commit: 3593c05)
+   - Added `onDuty` state to track currently clocked-in workers
+   - Query fetches attendances WHERE ended_at IS NULL
+   - Calculates elapsed time from database timestamps
+   - Displays worker name, phone, check-in time, elapsed duration
+   - UI positioned above "Today's attendance" section
+
+2. **Build Fix & Redeployment** (Commit: 4282823)
+   - Fixed ESLint error: unescaped apostrophe in JSX
+   - Changed "Today's attendance" to "Today&apos;s attendance"
+   - Build now passes successfully on Vercel
+   - Deployed to: https://picket-ltawcpzb1-jason-madrugas-projects.vercel.app
+
+3. **Domain Configuration**
+   - Configured custom domain: local79.vercel.app
+   - Used CLI: `vercel domains add local79.vercel.app`
+   - Main production URL now: https://local79.vercel.app
+
+### Issues Encountered
+- Initial deployment failed due to ESLint error
+- User confused about localhost vs production URLs
+- User thought changes broke the app (was testing wrong URL)
+
+### What's Working Now
+✅ Admin dashboard shows currently clocked-in workers in real-time
+✅ Custom domain configured and active
+✅ Build pipeline passing
+✅ Production deployment stable
+
+### What's Still Broken
+❌ Resume Tracking button on worker UI (Priority 1 to fix)
+
 ## 🐛 CRITICAL BUGS & FEEDBACK (2025-09-31 00:15)
 
 ### Testing Results from User
@@ -737,28 +772,39 @@ WHERE ended_at IS NULL
 
 ## 🎯 IMMEDIATE FOCUS (POST-COMPACT REFERENCE)
 
-### Current State
-- **App**: Session persistence PWA deployed at https://picket-e0onwm550-jason-madrugas-projects.vercel.app
-- **Time**: 12:15 AM, demo at 9:00 AM (8h 45m remaining)
-- **Latest Commit**: 8799fe4
-- **Status**: Core features working, critical bugs identified
+### Current State (2025-10-01 00:52 AM)
+- **Production URL**: https://local79.vercel.app ✅
+- **Latest Commit**: 4282823
+- **Latest Deployment**: https://picket-ltawcpzb1-jason-madrugas-projects.vercel.app
+- **Status**: Admin dashboard updated, domain configured, auth working
 
-### CRITICAL BUG TO FIX NOW
-**Resume Tracking button doesn't work** (line 587-636 in pages/index.tsx)
-- User clicks button → nothing happens
-- Expected: Status changes from 'paused' to 'in', tracking resumes
-- Actual: Button clicks but no visible change
-- Debug: Check if location permission failing, check state updates
+### ✅ COMPLETED (2025-10-01 Session)
+1. ✅ **Admin "Currently On Duty" view** - DONE
+   - Added query for active attendances (ended_at IS NULL)
+   - Shows: Name, Phone, Check-in Time, Elapsed Time
+   - Location: pages/admin.tsx:127-146
+   - Format time helper added (lines 41-46)
+2. ✅ **Domain configured to local79.vercel.app** - DONE
+   - Used `vercel domains add` command
+   - Production URL now: https://local79.vercel.app
+3. ✅ **Fixed ESLint build error** - DONE
+   - Escaped apostrophe in "Today's attendance" (line 150)
+   - Build now passes successfully
 
-### Priority Tasks (In Order)
-1. **Fix Resume Tracking bug** - blocking demo
-2. **Admin "Currently On Duty" view** - essential for stakeholder demo
-   - Query: `SELECT * FROM attendances WHERE ended_at IS NULL`
-   - Show: Name, Site, Time Elapsed, Check-in Time
-3. **Add estimated clock-out time** - nice UX touch
+### 🚨 REMAINING CRITICAL TASKS
+1. **Fix Resume Tracking bug** - BLOCKING DEMO
+   - Location: pages/index.tsx:587-636
+   - User clicks button → nothing happens
+   - Expected: Status changes from 'paused' to 'in', tracking resumes
+   - Debug approach: Add console logging, test location permissions
+2. **Add estimated clock-out time** - Nice UX polish
    - Calculate: check_in_time + 7 hours
    - Display: "Clocked in at 8:05 AM • Est. clock-out: 3:05 PM"
-4. **Rename URL to local79.vercel.app** - branding (optional, risky)
+   - Location: Worker UI on index.tsx
+
+### ⚙️ CURRENT SETUP TASK
+- User configuring Supabase Site URL to https://local79.vercel.app
+- Redirect URLs: https://local79.vercel.app/** and http://localhost:3000/**
 
 ### How to Use memories.md
 - **Always read memories.md first** after context reset
