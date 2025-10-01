@@ -54,7 +54,7 @@ export default function Admin() {
     setLoading(true)
     try {
       // Query for currently clocked in workers (ended_at IS NULL)
-      console.log('🔍 Admin Query - Fetching active attendances for site:', site.id, site.name)
+      console.log('🔍 Admin Query - Fetching active attendances for site:', site.id, site.name, '- Build:', Date.now())
       const { data: activeAttendances, error: activeError } = await supabase
         .from('attendances')
         .select('*, profiles(full_name, phone, email)')
