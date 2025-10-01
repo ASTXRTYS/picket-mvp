@@ -677,6 +677,64 @@ WHERE ended_at IS NULL
 
 **Demo Ready**: YES - All features working on production URL
 
+## 🐛 CRITICAL BUGS & FEEDBACK (2025-09-31 00:15)
+
+### Testing Results from User
+
+**What Works** ✅:
+- Account creation via cell phone ✅
+- Account creation via web app ✅
+- Shows check-in time to worker (e.g., "You checked in at 11:05 PM") ✅
+- Location permission re-requested when app reopens ✅
+
+**What's Broken** ❌:
+1. **CRITICAL**: "Resume Tracking" button does NOT work - button clicks but nothing happens
+   - User clicked button, expected tracking to resume
+   - No visible feedback or error
+   - Bug location: likely pages/index.tsx:587-616 (Resume button onClick handler)
+
+**Feature Requests** 📋:
+1. **Change URL**: Rename deployment to `local79.vercel.app` (cleaner branding)
+2. **Show Estimated Clock-Out Time**:
+   - Shifts are 7 hours
+   - Show: "Clocked in at 8:05 AM • Estimated clock-out: 3:05 PM"
+   - Calculate from check-in time + 7 hours
+3. **Admin Dashboard - Currently On Duty**:
+   - Admin logs in → sees list of workers currently clocked in
+   - Show: Name, Site, Time Elapsed, Check-in Time
+   - Query: attendances WHERE ended_at IS NULL
+   - This is PHASE 5 from original plan (was marked optional)
+
+### Immediate Actions Required
+
+**Priority 1 - Fix Resume Tracking Bug**:
+- Debug onClick handler (line 587)
+- Check console errors
+- Verify state updates actually happen
+- Test location permission flow
+
+**Priority 2 - Admin "Currently On Duty" View**:
+- Essential for demo (stakeholders need to see this!)
+- Query active sessions in admin dashboard
+- Show real-time status
+
+**Priority 3 - UI Polish**:
+- Add estimated clock-out time display
+- Improve visual feedback on resume button
+
+**Priority 4 - URL Rename** (optional, risky):
+- Requires Vercel project settings change
+- May break deployment
+- Do AFTER fixing critical bugs
+
+### Bug Fix Strategy
+
+1. Test resume button locally first
+2. Check browser console for errors
+3. Verify location permission granted
+4. Check if wake lock acquisition fails
+5. Look for state update issues
+
 ## 🎯 Revised Scope Based on Research Outcome
 **IF background tracking viable → Implement + AI agent (90 min)**
 **IF NOT viable → Focus on AI agent only + polish existing UX (45 min)**
