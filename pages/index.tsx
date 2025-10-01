@@ -251,11 +251,34 @@ export default function Home() {
               >
                 {loading ? 'Sending...' : 'Send Magic Link'}
               </button>
+              <button
+                className="secondary"
+                style={{width: '100%', marginTop: '12px'}}
+                disabled={loading}
+                onClick={()=> {
+                  if (!signUpData.email) {
+                    alert('Enter your email first')
+                    return
+                  }
+                  setIsNewUser(true)
+                }}
+              >
+                First time here? Create an account
+              </button>
             </>
           ) : (
             <>
               <h2>Complete Sign Up</h2>
               <p style={{marginBottom: '24px', color: '#9ca3af'}}>First time? Tell us about yourself</p>
+              <div className="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={signUpData.email}
+                  onChange={(e)=> setSignUpData({...signUpData, email: e.target.value})}
+                />
+              </div>
               <div className="form-group">
                 <label>Full Name</label>
                 <input 

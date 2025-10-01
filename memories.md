@@ -119,12 +119,27 @@
 - **Root Cause**: Profile created by trigger with only email, app not detecting and showing form
 - **Impact**: Users can log in but have no name/phone in profile → admin dashboard shows incomplete data
 
-## What's Broken
-1. User signs up with email → magic link sent ✅
-2. Trigger creates profile with ONLY email (no name/phone) ✅
-3. User logs in → App should detect empty `full_name` and show "Complete Sign Up" form ❌
-4. Instead: App goes straight to site selection page ❌
-5. Result: Profiles exist but are incomplete (no full_name, no phone)
+## Bug Fix Applied (21:35)
+**Problem**: After login, app went straight to site selection even with incomplete profile
+**Root Cause**: Profile completion form only showed when `!session` (line 226), so never appeared after login
+**Fix**: Added check at line 302: `if (session && profile && !profile.full_name)` → show completion form
+**Commit**: 430dae1 - Deployed to production
+
+### Updated SQL in Supabase
+Added missing RLS INSERT policy for profiles:
+```sql
+CREATE POLICY "profiles auto insert" ON public.profiles 
+  FOR INSERT WITH CHECK (true);
+```
+This allows the trigger to successfully create profiles.
+
+## Current Flow (Fixed)
+1. User enters email → magic link sent ✅
+2. User clicks link → logs in ✅  
+3. Trigger creates profile with email only ✅
+4. App detects `!profile.full_name` → shows "Complete Your Profile" form ✅
+5. User fills name/phone → profile updated ✅
+6. App proceeds to site selection ✅
 
 ## 🔬 Active Research (In Progress)
 **Question**: Is pure-web background location tracking viable for MVP, or do we need to pivot?
