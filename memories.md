@@ -428,6 +428,176 @@ If native app isn't possible by 9am, here are demo-friendly alternatives:
    - Less intrusive than keeping app open
    - Demonstrates technical sophistication
 
+## 🎯 FINAL IMPLEMENTATION PLAN - Session Persistence (2025-09-31 00:15)
+
+### Context & Decision
+**User Reality**: No Android device, not doing iOS build tonight
+**User Problem**: Workers will close app (natural behavior) and session gets lost
+**INSIGHT**: We don't need continuous tracking for MVP - we need RESILIENT CHECK-IN/CHECK-OUT
+
+### The Solution: Session Persistence + Resume Detection
+
+**Core Concept**:
+- User checks in → session saved in database (already works!)
+- User closes app → session STAYS ACTIVE in database
+- User reopens app → detect active session → show "Resume Session?" prompt
+- User clocks out → verify location, mark session complete
+
+**This is actually how real time-tracking apps work** (TSheets, Clockify, etc.)
+
+### Why This Works for Demo
+
+**Stakeholder Pitch**:
+- "Workers clock in with verified GPS at start"
+- "Session persists even if they close browser"
+- "Workers clock out with verified GPS at end"
+- "Admin sees who's currently clocked in, total time, locations"
+- "Future: Native app for continuous GPS sampling"
+
+**Technical Reality**:
+- Check-in: Verified location ✓
+- Check-out: Verified location ✓
+- In-between: Trust + resume capability
+- Database tracks session state accurately
+
+### Implementation Roadmap
+
+**PHASE 1: Session Detection (CHECKPOINT A)**
+- [x] Database already has `attendances` table with `ended_at` field
+- [ ] On app load: Query for active session (ended_at IS NULL for current user)
+- [ ] If found: Store in React state + show resume UI
+- [ ] If not found: Show normal check-in flow
+
+**PHASE 2: Resume UI (CHECKPOINT B)**
+- [ ] New UI state: `activeSession` { id, started_at, site_id, seconds_elapsed }
+- [ ] Calculate elapsed time from started_at to now
+- [ ] Show banner: "You're clocked in since [TIME] at [SITE] - [ELAPSED]"
+- [ ] Button: "Resume Tracking" (starts location watch + timer)
+- [ ] Button: "Clock Out" (ends session)
+
+**PHASE 3: Session Recovery (CHECKPOINT C)**
+- [ ] "Resume Tracking" → start location watch
+- [ ] Continue timer from calculated elapsed seconds
+- [ ] Update UI to match check-in state
+- [ ] Re-acquire wake lock if supported
+
+**PHASE 4: Graceful Close Handling (CHECKPOINT D)**
+- [ ] Remove "Keep app open" warnings (not needed anymore!)
+- [ ] Change messaging: "Session active - you can close this app and return anytime"
+- [ ] On clock-out: Calculate total time from database (not from timer)
+- [ ] Server-side: Auto-close sessions after 12 hours (safety)
+
+**PHASE 5: Admin Dashboard Enhancement (CHECKPOINT E)**
+- [ ] Show "Currently Clocked In" section at top
+- [ ] Display: Name, Site, Time Elapsed, Last Seen (if tracking)
+- [ ] Distinguish: "Tracking" vs "Session Active" (app open vs closed)
+
+**PHASE 6: Testing & Polish (CHECKPOINT F)**
+- [ ] Test: Check in → Close app → Reopen → Resume
+- [ ] Test: Check in → Close app → Clock out without resuming
+- [ ] Test: Multiple sessions (shouldn't create duplicate)
+- [ ] Test: Admin view shows active sessions correctly
+
+### Technical Implementation Details
+
+**Session Detection Query** (Phase 1):
+```javascript
+const { data: activeSession } = await supabase
+  .from('attendances')
+  .select('*, sites(name)')
+  .eq('user_id', session.user.id)
+  .is('ended_at', null)
+  .order('started_at', { ascending: false })
+  .limit(1)
+  .maybeSingle()
+```
+
+**Elapsed Time Calculation** (Phase 2):
+```javascript
+if (activeSession) {
+  const startTime = new Date(activeSession.started_at)
+  const now = new Date()
+  const elapsedSeconds = Math.floor((now - startTime) / 1000)
+  setActiveSeconds(elapsedSeconds)
+}
+```
+
+**Resume Session Logic** (Phase 3):
+```javascript
+async function resumeSession() {
+  setAttendanceId(activeSession.id)
+  setSelectedSiteId(activeSession.site_id)
+  setActiveSeconds(calculatedElapsed)
+  setStatus('in')
+  // Start location watch
+  // Start timer from elapsed
+}
+```
+
+**Clock Out From Anywhere** (Phase 4):
+```javascript
+async function handleClockOut() {
+  // Get current location
+  const location = await getCurrentPosition()
+
+  // Calculate ACTUAL elapsed time from database
+  const startTime = new Date(activeSession.started_at)
+  const endTime = new Date()
+  const totalSeconds = Math.floor((endTime - startTime) / 1000)
+
+  // Update database
+  await supabase.from('attendances').update({
+    ended_at: endTime.toISOString(),
+    seconds_inside: totalSeconds,
+    last_lat: location.lat,
+    last_lng: location.lng
+  }).eq('id', attendanceId)
+
+  setStatus('done')
+}
+```
+
+**Auto-Close Old Sessions** (Server-side SQL for safety):
+```sql
+-- Run via Supabase scheduled function (optional for MVP)
+UPDATE attendances
+SET ended_at = started_at + INTERVAL '12 hours',
+    seconds_inside = 43200
+WHERE ended_at IS NULL
+  AND started_at < NOW() - INTERVAL '12 hours';
+```
+
+### Rollback Points
+
+**CHECKPOINT A → CHECKPOINT B**: If session detection breaks, rollback to current working state
+**CHECKPOINT C → CHECKPOINT D**: If resume logic fails, keep detection but disable resume
+**CHECKPOINT E**: Admin enhancements are optional, can skip for time
+
+### Success Criteria
+
+**MVP Demo Success**:
+- [ ] Worker can check in with GPS verification
+- [ ] Worker can close app completely
+- [ ] Worker can reopen app and see "Resume Session?"
+- [ ] Worker can clock out with GPS verification
+- [ ] Admin sees currently clocked-in workers
+- [ ] Session time calculated correctly from database
+
+**Demo Script Ready**:
+- Show check-in flow
+- Close app completely (home screen)
+- Reopen app (shows resume prompt)
+- Show admin dashboard (active sessions visible)
+- Clock out (final verification)
+
+### Time Estimate: 1-2 hours
+
+**Phase 1-3**: 1 hour (core functionality)
+**Phase 4-5**: 30 minutes (polish + admin)
+**Phase 6**: 30 minutes (testing)
+
+### Start Implementation: NOW
+
 ## 🎯 Revised Scope Based on Research Outcome
 **IF background tracking viable → Implement + AI agent (90 min)**
 **IF NOT viable → Focus on AI agent only + polish existing UX (45 min)**
