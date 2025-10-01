@@ -101,31 +101,64 @@
 ## 🎯 REMAINING TASKS (Priority Order)
 
 ### 1. AI Admin Copilot (90 min) - PRIMARY GOAL
-**Status**: Researching Anthropic Claude SDK implementation strategy
+**Status**: Research complete. Ready to implement.
 
-**Goal**: Chat widget on admin dashboard that generates weekly compliance reports
+**Implementation Plan (Timeboxed: 60-90 min)**:
 
-**Open Questions (Need Claude SDK Research)**:
-- Best practice for API route structure (`/api/chat` endpoint?)
-- Prompt caching setup for cost efficiency ($10-15 budget goal)
-- How to pass Supabase query results to Claude context
-- Streaming responses vs single completion
-- Error handling for rate limits/failures
+**Phase 1: Backend API Route (20 min)**
+```typescript
+// pages/api/chat.ts
+import { Anthropic } from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
 
-**Spec Planning Philosophy**: 
-- ✅ Build: Natural language Q&A + weekly report generation
-- ❌ Avoid: Complex scheduling, email automation, multi-agent orchestration
-- 🎯 Sweet Spot: Simple chat interface, impressive report formatting, fast queries
-**Requirements**:
-- Chat widget on admin page (like customer support chat)
-- Uses Anthropic Claude SDK with prompt caching
-- Has read access to Supabase `attendances`, `profiles`, `sites` tables
-- Can generate weekly reports: who didn't complete shifts, insights for stakeholders
-- Budget: $10-15 total (should last months with caching)
+// On user query:
+// 1. Query Supabase for attendance data (service role key)
+// 2. Format data as context for Claude
+// 3. Send to Claude with system prompt
+// 4. Return formatted report
+```
 
-**Implementation**:
-- Create API route: `/api/chat` that accepts messages
-- Query Supabase data server-side
+**Phase 2: Chat UI Component (20 min)**
+```typescript
+// components/AdminChat.tsx
+// - Simple message list + input box
+// - "Generate Weekly Report" quick action button
+// - Loading state while AI responds
+// - Markdown rendering for formatted reports
+```
+
+**Phase 3: System Prompt Engineering (15 min)**
+```
+You are an attendance compliance assistant. You have access to:
+- Worker attendance records (check-in/out times, total hours)
+- Expected schedule: 7 hours/day, Monday-Friday (35 hrs/week)
+
+Generate reports that show:
+- ✅ Compliant workers (35+ hours)
+- ❌ Non-compliant workers (< 35 hours)
+- 📊 Summary statistics
+```
+
+**Phase 4: Integration (15 min)**
+- Add chat widget to admin.tsx
+- Test with sample queries
+- Deploy and verify
+
+**Tech Stack Decisions**:
+- ✅ Use: `@anthropic-ai/sdk` (official NPM package)
+- ✅ Model: `claude-3-5-sonnet-20241022` (fast + cost-effective)
+- ✅ Max tokens: 1000 (sufficient for reports)
+- ❌ Skip: Streaming (adds complexity, not needed for reports)
+- ❌ Skip: Prompt caching (save for V2 if needed)
+- ❌ Skip: Rate limiting (admin-only, low usage)
+
+**Sweet Spot Spec**:
+- ✅ Natural language queries: "Who didn't hit 35 hours this week?"
+- ✅ One-click report generation: "Generate Weekly Report" button
+- ✅ Formatted output: Tables, emojis, clear summaries
+- ❌ Skip: Multi-turn conversations (stateless is simpler)
+- ❌ Skip: Email automation (out of scope for MVP)
+- ❌ Skip: Historical trend analysis (V2 feature)
 - Call Claude API with attendance context
 - Return formatted responses
 - Add chat UI component to admin page
