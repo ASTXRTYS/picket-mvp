@@ -340,38 +340,49 @@ export default function Home() {
     if (!attendanceId) return
     setLoading(true)
     try {
-      // Get current location
-      const p = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
-      })
-      const last = { lat: p.coords.latitude, lng: p.coords.longitude }
-
-      // PHASE 4: Calculate ACTUAL elapsed time from database
-      // Fetch the session start time to calculate true elapsed seconds
-      const { data: currentAttendance } = await supabase
-        .from('attendances')
-        .select('started_at')
-        .eq('id', attendanceId)
-        .single()
-
-      if (!currentAttendance) throw new Error('Session not found')
-
-      const startTime = new Date(currentAttendance.started_at)
+      console.log('🔵 Starting clock-out process...')
       const endTime = new Date()
-      const totalSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000)
 
-      // Update attendance with calculated time from database
+      // Try to get location but don't block on it
+      let last = { lat: null, lng: null }
+      try {
+        console.log('📍 Requesting location...')
+        const p = await new Promise<GeolocationPosition>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Location timeout')), 5000)
+          navigator.geolocation.getCurrentPosition((pos) => {
+            clearTimeout(timeout)
+            resolve(pos)
+          }, reject, { enableHighAccuracy: true, timeout: 5000 })
+        })
+        last = { lat: p.coords.latitude, lng: p.coords.longitude }
+        console.log('✅ Location acquired')
+      } catch (locErr) {
+        console.warn('⚠️ Could not get location:', locErr)
+        // Continue without location
+      }
+
+      // Use activeSeconds from timer (already aggregated with today's sessions)
+      const totalSeconds = activeSeconds
+      console.log(`⏱️ Total seconds from timer: ${totalSeconds}`)
+
+      // Update attendance with minimal data
+      console.log('💾 Updating attendance record...')
       const { error } = await supabase.from('attendances').update({
         ended_at: endTime.toISOString(),
-        seconds_inside: totalSeconds, // Use calculated time, not timer
-        last_lat: last.lat,
-        last_lng: last.lng,
+        seconds_inside: totalSeconds,
+        ...(last.lat !== null && { last_lat: last.lat }),
+        ...(last.lng !== null && { last_lng: last.lng })
       }).eq('id', attendanceId)
-      if (error) throw error
+
+      if (error) {
+        console.error('❌ Update error:', error)
+        throw error
+      }
+      console.log('✅ Attendance updated successfully')
 
       // Show simple success message
       const sessionHours = (totalSeconds / 3600).toFixed(1)
-      alert(`✅ Clocked out successfully!\n\nThis session: ${formatTime(totalSeconds)} (${sessionHours} hrs)\n\nCheck the app to see your total time for today.`)
+      alert(`✅ Clocked out successfully!\n\nTotal time: ${formatTime(totalSeconds)} (${sessionHours} hrs)`)
 
       // Release wake lock when clocking out
       if (wakeLockRef.current) {
@@ -389,7 +400,9 @@ export default function Home() {
       setAttendanceId(null)
       setActiveSeconds(0)
       setStatus('done')
+      console.log('✅ Clock-out complete')
     } catch (e:any) {
+      console.error('❌ Clock-out failed:', e)
       alert(e.message || String(e))
       setLoading(false)
     }

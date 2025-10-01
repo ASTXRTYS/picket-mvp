@@ -104,7 +104,20 @@
 
 **Problem Solved**: Workers can now clock in/out multiple times per day and see cumulative time toward 7-hour goal.
 
-**Clock-Out Timeout Fix (6:08 AM)**: Removed post-update query that was causing timeouts. Clock-out now shows simple success message. Workers see total daily time in the timer display (automatically aggregated on page load).
+**Clock-Out Timeout Fix v2 (6:12 AM)**:
+- **Root Cause**: Multiple blocking operations:
+  1. geolocation.getCurrentPosition with 10s timeout
+  2. SELECT query to fetch started_at from DB
+  3. UPDATE query timing out
+
+- **Fix Applied**:
+  * Made geolocation non-blocking (5s timeout, continues without location if fails)
+  * Removed SELECT query entirely - use activeSeconds from timer state (already aggregated!)
+  * Simplified UPDATE to minimal fields
+  * Added comprehensive console.log debugging
+  * Location data now optional in UPDATE (only included if available)
+
+- **Key Insight**: activeSeconds state already has cumulative time including all today's sessions, no need to query DB for started_at and recalculate!
 
 **Root Cause**: Database schema was CORRECT (multiple attendance records = good audit trail), but UI layer didn't aggregate same-day sessions.
 
