@@ -113,11 +113,11 @@
 - **Fix**: Simplified logic - just send magic link for all users (no pre-auth profile check)
 - **Result**: Returning users now get magic link directly without sign-up form
 
-## Current Status (2025-09-30 21:31)
-- **Production**: https://local79.vercel.app ✅ DEPLOYED
-- **CRITICAL BUG**: Sign-up form (name/phone) not appearing for new users
-- **Root Cause**: Profile created by trigger with only email, app not detecting and showing form
-- **Impact**: Users can log in but have no name/phone in profile → admin dashboard shows incomplete data
+## Current Status (2025-09-30 22:21)
+- **Production**: https://local79.vercel.app ✅ DEPLOYED (commit e072812)
+- **Auth Fix**: Sign-up button added + profile loading guard ensures completion form shows before worker UI
+- **Testing**: Use incognito or sign out to verify new-user flow (profile completion mandatory)
+- **Next**: Confirm magic-link flow tonight, demo tomorrow a.m.
 
 ## Bug Fix Applied (21:35)
 **Problem**: After login, app went straight to site selection even with incomplete profile
@@ -133,13 +133,12 @@ CREATE POLICY "profiles auto insert" ON public.profiles
 ```
 This allows the trigger to successfully create profiles.
 
-## Current Flow (Fixed)
-1. User enters email → magic link sent ✅
-2. User clicks link → logs in ✅  
-3. Trigger creates profile with email only ✅
-4. App detects `!profile.full_name` → shows "Complete Your Profile" form ✅
-5. User fills name/phone → profile updated ✅
-6. App proceeds to site selection ✅
+## Current Flow (Auth)
+1. User enters email → chooses **Send Magic Link** (returning) or **Create account** (new) ✅
+2. If new: fills name/phone → magic link sent with data stored locally ✅
+3. User clicks link → logs in ✅
+4. App waits for profile load; if `full_name` missing → shows "Complete Your Profile" form ✅
+5. After update → proceeds to site selection ✅
 
 ## 🔬 Active Research (In Progress)
 **Question**: Is pure-web background location tracking viable for MVP, or do we need to pivot?

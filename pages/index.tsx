@@ -20,6 +20,7 @@ export default function Home() {
   const [profile, setProfile] = useState<any>(null)
   const [isNewUser, setIsNewUser] = useState(false)
   const [signUpData, setSignUpData] = useState({ fullName: '', phone: '', email: '' })
+  const [profileLoading, setProfileLoading] = useState(true)
 
   useEffect(() => {
     const init = async () => {
@@ -30,57 +31,77 @@ export default function Home() {
     init()
   }, [])
 
-  useEffect(() => { (async () => {
-    if (session) {
-      let { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
-      console.log('🔍 Loaded profile:', prof)
-      
-      // FALLBACK: If profile doesn't exist, create it (in case trigger failed)
-      if (!prof) {
-        console.log('⚠️ Profile missing - creating fallback profile')
-        const { error: insertError } = await supabase.from('profiles').insert({
-          id: session.user.id,
-          email: session.user.email,
-          role: 'worker'
-        })
-        if (insertError) console.error('❌ Failed to create profile:', insertError)
-        
-        // Re-fetch profile
-        const { data: newProf } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
-        prof = newProf
-        console.log('✅ Created fallback profile:', prof)
+  useEffect(() => {
+    const load = async () => {
+      if (!session) {
+        setProfile(null)
+        setSites([])
+        setSelectedSiteId('')
+        setStatus('idle')
+        setIsNewUser(false)
+        setSignUpData({ fullName: '', phone: '', email: '' })
+        setProfileLoading(false)
+        return
       }
-      
-      // Check for pending profile data
-      const pending = localStorage.getItem('pendingProfile')
-      if (pending && prof && !prof.full_name) {
-        const { fullName, phone } = JSON.parse(pending)
-        await supabase.from('profiles').update({
-          full_name: fullName,
-          phone: phone
-        }).eq('id', session.user.id)
-        localStorage.removeItem('pendingProfile')
-        // Refresh profile
-        const { data: updated } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
-        console.log('✅ Updated profile:', updated)
-        setProfile(updated)
-      } else {
-        setProfile(prof)
-        
-        // If profile exists but has no name (old signup), prompt for it
-        if (prof && !prof.full_name) {
-          // Show sign-up form to complete profile
-          setIsNewUser(true)
-          setSignUpData({ email: session.user.email || '', fullName: '', phone: '' })
+
+      setProfileLoading(true)
+      try {
+        let { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+        console.log('🔍 Loaded profile:', prof)
+
+        if (!prof) {
+          console.log('⚠️ Profile missing - creating fallback profile')
+          const { error: insertError } = await supabase.from('profiles').insert({
+            id: session.user.id,
+            email: session.user.email,
+            role: 'worker'
+          })
+          if (insertError) console.error('❌ Failed to create profile:', insertError)
+          const { data: newProf } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+          prof = newProf || null
+          console.log('✅ Created fallback profile:', prof)
         }
+
+        let workingProfile = prof || null
+
+        const pending = localStorage.getItem('pendingProfile')
+        if (pending && workingProfile && (!workingProfile.full_name || !workingProfile.phone)) {
+          const { fullName, phone } = JSON.parse(pending)
+          await supabase.from('profiles').update({
+            full_name: fullName,
+            phone: phone
+          }).eq('id', session.user.id)
+          localStorage.removeItem('pendingProfile')
+          const { data: refreshed } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+          workingProfile = refreshed || workingProfile
+          console.log('✅ Updated profile from pending data:', workingProfile)
+        }
+
+        setProfile(workingProfile)
+
+        if (workingProfile && (!workingProfile.full_name || !workingProfile.phone)) {
+          setSignUpData({
+            email: session.user.email || '',
+            fullName: workingProfile.full_name || '',
+            phone: workingProfile.phone || ''
+          })
+        } else {
+          setSignUpData(prev => ({ ...prev, email: session.user.email || prev.email }))
+        }
+
+        const { data } = await supabase.from('sites').select('*').order('name')
+        setSites(data || [])
+        if (workingProfile?.site_id) setSelectedSiteId(workingProfile.site_id)
+        setStatus('ready')
+      } catch (err) {
+        console.error('Failed to load profile', err)
+      } finally {
+        setProfileLoading(false)
       }
-      
-      const { data } = await supabase.from('sites').select('*').order('name')
-      setSites(data || [])
-      if (prof?.site_id) setSelectedSiteId(prof.site_id)
-      setStatus('ready')
     }
-  })() }, [session])
+
+    load()
+  }, [session])
 
   // watch location when timing
   useEffect(() => {
@@ -321,8 +342,22 @@ export default function Home() {
     )
   }
 
+  if (session && (profileLoading || !profile)) {
+    return (
+      <div className="container">
+        <div className="logo-header">
+          <img src="/teamsters-logo.svg" alt="Teamsters Logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <h1>Union Picket Check-In</h1>
+        </div>
+        <div className="card main-card">
+          <p style={{textAlign: 'center', color: '#9ca3af'}}>Loading your profile…</p>
+        </div>
+      </div>
+    )
+  }
+
   // If logged in but profile incomplete, show completion form
-  if (session && profile && !profile.full_name) {
+  if (session && profile && (!profile.full_name || !profile.phone)) {
     return (
       <div className="container">
         <div className="logo-header">
@@ -333,7 +368,7 @@ export default function Home() {
         <div className="card main-card">
           <h2>Complete Your Profile</h2>
           <p style={{marginBottom: '24px', color: '#9ca3af'}}>Please provide your information to continue</p>
-          <div className="form-group">
+          <div className="form-group" style={{marginTop: '16px'}}>
             <label>Full Name</label>
             <input 
               type="text"
@@ -379,20 +414,6 @@ export default function Home() {
           >
             {loading ? 'Saving...' : 'Continue'}
           </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (session && !profile) {
-    return (
-      <div className="container">
-        <div className="logo-header">
-          <img src="/teamsters-logo.svg" alt="Teamsters Logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-          <h1>Union Picket Check-In</h1>
-        </div>
-        <div className="card main-card">
-          <p style={{textAlign: 'center', color: '#9ca3af'}}>Loading your profile…</p>
         </div>
       </div>
     )
