@@ -113,30 +113,67 @@
 - **Fix**: Simplified logic - just send magic link for all users (no pre-auth profile check)
 - **Result**: Returning users now get magic link directly without sign-up form
 
-## Current Status (2025-09-30 22:41)
-- **Local Branch**: refining auth guard (profileResolved + pending data logic)
-- **Production**: https://local79.vercel.app (last deploy e072812) → needs re-test after new push
-- **Goal**: Validate auth flow on localhost first (port 3001), then redeploy if clean
+## ✅ WORKING CONFIGURATION (2025-09-30 23:30)
 
-## Bug Fix Applied (21:35)
-**Problem**: After login, app went straight to site selection even with incomplete profile
-**Root Cause**: Profile completion form only showed when `!session` (line 226), so never appeared after login
-**Fix**: Added check at line 302: `if (session && profile && !profile.full_name)` → show completion form
-**Commit**: 430dae1 - Deployed to production
+### Current Status
+- **Latest Commit**: `3876626` - Auth flow fully working
+- **Production**: https://local79.vercel.app (needs redeploy with latest fixes)
+- **Local Dev**: Running on http://localhost:3000 - VERIFIED WORKING ✅
 
-### Updated SQL in Supabase
-Added missing RLS INSERT policy for profiles:
+### Authentication Flow (WORKING)
+1. User enters email → Clicks "First time here? Create an account"
+2. Fills name + phone → Magic link sent → Data stored in localStorage
+3. User clicks magic link → Logs in
+4. Trigger creates profile (id + email only)
+5. App loads profile → Sees full_name/phone missing → Reads localStorage
+6. Updates profile with name/phone from localStorage
+7. User proceeds to main app with complete profile ✅
+
+### Critical RLS Policy Fixes (2025-09-30 23:15)
+**Problem Solved**: Circular dependency in RLS policies caused 500 errors on profile SELECT
+
+**Solution**: Created `is_admin()` security definer function to bypass RLS recursion
 ```sql
-CREATE POLICY "profiles auto insert" ON public.profiles 
-  FOR INSERT WITH CHECK (true);
+-- Helper function (lines 40-48 in supabase.sql)
+create or replace function public.is_admin()
+returns boolean as $$
+begin
+  return exists(
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
+  );
+end;
+$$ language plpgsql security definer;
 ```
-This allows the trigger to successfully create profiles.
 
-## Current Focus (Auth Debug)
-1. **Reset** profile state whenever session changes
-2. **Wait** for `profileResolved` before rendering worker UI
-3. **Require** both `full_name` & `phone` before continuing
-4. **Plan**: Run `npm run lint` + `npm run dev -- -p 3001`, walk through magic-link flow locally, then redeploy
+**All RLS Policies Now Use is_admin()** instead of inline subqueries:
+- `admin write sites` - line 67
+- `admin update sites` - line 72
+- `profiles admin read` - line 91
+- `att admin read` - line 110
+
+**Added Missing INSERT Policy** (line 98):
+```sql
+create policy "profiles self insert" on public.profiles
+  for insert with check (id = auth.uid());
+```
+
+### Error Handling Added
+- Profile UPDATE calls now check for errors (pages/index.tsx:86, 448)
+- Errors are logged and thrown to alert user
+- No more silent failures ✅
+
+### What's Working Now
+- ✅ Sign-up flow (new users)
+- ✅ Sign-in flow (returning users)
+- ✅ Profile creation via trigger
+- ✅ Fallback profile creation if trigger fails
+- ✅ Profile completion form
+- ✅ Profile updates (name/phone)
+- ✅ Site selection
+- ✅ Check-in/clock-out
+- ✅ Geofence tracking
+- ✅ Admin dashboard
 
 ## 🔬 Active Research (In Progress)
 **Question**: Is pure-web background location tracking viable for MVP, or do we need to pivot?
