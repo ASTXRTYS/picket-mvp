@@ -12,6 +12,7 @@ export default function Admin() {
   const [sites, setSites] = useState<Site[]>([])
   const [present, setPresent] = useState<Profile[]>([])
   const [absent, setAbsent] = useState<Profile[]>([])
+  const [onDuty, setOnDuty] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -37,10 +38,37 @@ export default function Admin() {
 
   const canView = profile?.role === 'admin'
 
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = seconds % 60
+    return `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`
+  }
+
   const refresh = useCallback(async () => {
     if (!site) return
     setLoading(true)
     try {
+      // Query for currently clocked in workers (ended_at IS NULL)
+      const { data: activeAttendances } = await supabase
+        .from('attendances')
+        .select('*, profiles(full_name, phone, email)')
+        .eq('site_id', site.id)
+        .is('ended_at', null)
+        .order('started_at', { ascending: false })
+
+      // Calculate elapsed time for each active session
+      const onDutyWorkers = (activeAttendances || []).map(att => {
+        const startTime = new Date(att.started_at)
+        const now = new Date()
+        const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
+        return {
+          ...att,
+          elapsed: elapsedSeconds
+        }
+      })
+      setOnDuty(onDutyWorkers)
+
       // local midnight to 23:59:59
       const start = new Date(); start.setHours(0,0,0,0)
       const end = new Date(); end.setHours(23,59,59,999)
@@ -58,7 +86,7 @@ export default function Admin() {
         ...w,
         attendance: attMap.get(w.id)
       }))
-      
+
       setPresent(workersWithAtt.filter(w => w.attendance) as any)
       setAbsent(workersWithAtt.filter(w => !w.attendance) as any)
     } finally {
@@ -96,9 +124,30 @@ export default function Admin() {
         </select>
       </div>
 
+      {onDuty.length > 0 && (
+        <div className="card">
+          <h3>Currently On Duty ({onDuty.length})</h3>
+          <table><tbody>
+            {onDuty.map(worker => (
+              <tr key={worker.id}>
+                <td>
+                  <div><strong>{worker.profiles?.full_name || worker.profiles?.email || 'Unknown'}</strong></div>
+                  {worker.profiles?.phone && <div style={{fontSize: '13px', color: '#9ca3af'}}>{worker.profiles.phone}</div>}
+                  <div style={{fontSize: '12px', color: '#6b7280', marginTop: '4px'}}>
+                    Checked in: {new Date(worker.started_at).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}
+                    {' • '}
+                    Elapsed: {formatTime(worker.elapsed)}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody></table>
+        </div>
+      )}
+
       <div className="card">
         <div className="row" style={{justifyContent:'space-between'}}>
-          <h3>Today’s attendance</h3>
+          <h3>Today's attendance</h3>
           <button onClick={refresh} disabled={loading}>Refresh</button>
         </div>
         <div className="row">
