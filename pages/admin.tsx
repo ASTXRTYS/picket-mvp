@@ -50,12 +50,20 @@ export default function Admin() {
     setLoading(true)
     try {
       // Query for currently clocked in workers (ended_at IS NULL)
-      const { data: activeAttendances } = await supabase
+      console.log('🔍 Admin Query - Fetching active attendances for site:', site.id, site.name)
+      const { data: activeAttendances, error: activeError } = await supabase
         .from('attendances')
         .select('*, profiles(full_name, phone, email)')
         .eq('site_id', site.id)
         .is('ended_at', null)
         .order('started_at', { ascending: false })
+
+      console.log('📊 Active attendances result:', { data: activeAttendances, error: activeError })
+
+      if (activeError) {
+        console.error('❌ Error fetching active attendances:', activeError)
+        alert('Error loading active workers: ' + activeError.message)
+      }
 
       // Calculate elapsed time for each active session
       const onDutyWorkers = (activeAttendances || []).map(att => {
@@ -67,6 +75,7 @@ export default function Admin() {
           elapsed: elapsedSeconds
         }
       })
+      console.log('👷 On duty workers:', onDutyWorkers)
       setOnDuty(onDutyWorkers)
 
       // TODAY'S ATTENDANCE - Get all completed shifts today at this site
