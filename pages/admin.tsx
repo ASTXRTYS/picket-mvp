@@ -69,26 +69,40 @@ export default function Admin() {
       })
       setOnDuty(onDutyWorkers)
 
-      // local midnight to 23:59:59
+      // TODAY'S ATTENDANCE - Get all completed shifts today at this site
       const start = new Date(); start.setHours(0,0,0,0)
       const end = new Date(); end.setHours(23,59,59,999)
-      const { data: workers } = await supabase.from('profiles').select('id, full_name, phone, email, role').eq('role', 'worker').eq('site_id', site.id)
-      const { data: atts } = await supabase
+      
+      // Get all attendances for today at this site with profile info
+      const { data: todayAtts } = await supabase
         .from('attendances')
-        .select('id, user_id, started_at, active_seconds')
+        .select('*, profiles(id, full_name, phone, email)')
         .eq('site_id', site.id)
         .gte('started_at', start.toISOString())
         .lte('started_at', end.toISOString())
+        .not('ended_at', 'is', null) // Only completed shifts
 
-      // Map attendance data to workers
-      const attMap = new Map((atts||[]).map(a => [a.user_id, a]))
-      const workersWithAtt = (workers||[]).map(w => ({
-        ...w,
-        attendance: attMap.get(w.id)
-      }))
+      // Group by user_id (in case someone checked in multiple times today)
+      const userMap = new Map()
+      ;(todayAtts || []).forEach(att => {
+        const userId = att.user_id
+        if (!userMap.has(userId)) {
+          userMap.set(userId, {
+            id: userId,
+            full_name: att.profiles?.full_name,
+            phone: att.profiles?.phone,
+            email: att.profiles?.email,
+            attendance: {
+              started_at: att.started_at,
+              active_seconds: att.seconds_inside
+            }
+          })
+        }
+      })
 
-      setPresent(workersWithAtt.filter(w => w.attendance) as any)
-      setAbsent(workersWithAtt.filter(w => !w.attendance) as any)
+      const presentWorkers = Array.from(userMap.values())
+      setPresent(presentWorkers as any)
+      setAbsent([]) // For MVP, we don't track "expected" workers
     } finally {
       setLoading(false)
     }
