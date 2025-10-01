@@ -32,8 +32,24 @@ export default function Home() {
 
   useEffect(() => { (async () => {
     if (session) {
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+      let { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
       console.log('🔍 Loaded profile:', prof)
+      
+      // FALLBACK: If profile doesn't exist, create it (in case trigger failed)
+      if (!prof) {
+        console.log('⚠️ Profile missing - creating fallback profile')
+        const { error: insertError } = await supabase.from('profiles').insert({
+          id: session.user.id,
+          email: session.user.email,
+          role: 'worker'
+        })
+        if (insertError) console.error('❌ Failed to create profile:', insertError)
+        
+        // Re-fetch profile
+        const { data: newProf } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+        prof = newProf
+        console.log('✅ Created fallback profile:', prof)
+      }
       
       // Check for pending profile data
       const pending = localStorage.getItem('pendingProfile')

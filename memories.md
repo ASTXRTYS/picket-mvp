@@ -113,48 +113,115 @@
 - **Fix**: Simplified logic - just send magic link for all users (no pre-auth profile check)
 - **Result**: Returning users now get magic link directly without sign-up form
 
-## Current Status (2025-09-30 19:37)
-- **GitHub Repo**: https://github.com/ASTXRTYS/picket-mvp ✅ PUSHED
-- **Vercel Deployment**: ✅ LIVE at https://local79.vercel.app
-- **Supabase Auth**: ✅ FIXED - Site URL updated to production
-- **User Coordinates**: 28.04339° N, 82.46805° W (Florida location)
-- **Status**: FULLY DEPLOYED AND WORKING
+## Current Status (2025-09-30 20:00)
+- **Production**: https://local79.vercel.app ✅ LIVE & WORKING
+- **Blocker**: "Keep window open" requirement = poor UX, not demo-ready
+- **Core Dilemma**: Web PWAs cannot reliably track background location (especially iOS Safari)
+- **State**: ⏸️ PAUSED - Waiting on external research to determine feasibility
 
-## 🎯 MVP POLISH SPRINT (Target: 9pm - 1 hour)
-**Goal**: Make demo impressive for tomorrow morning meeting
+## 🔬 Active Research (In Progress)
+**Question**: Is pure-web background location tracking viable for MVP, or do we need to pivot?
+
+**Research Context Provided**:
+- Tech stack: Next.js 14 PWA, Vercel, Supabase
+- Current implementation: `navigator.geolocation.watchPosition` (stops when tab closes)
+- Requirement: Track location every 2-3 minutes ONLY while user clocked in
+- Constraint: NO native wrappers (Capacitor/Cordova) - must stay pure web for MVP
+- Critical platform: iOS Safari (most restrictive - if it works there, works everywhere)
+
+**Fallback Strategy if Research Says "No"**:
+- PWA with "Add to Home Screen" prompt
+- Screen Wake Lock API to prevent sleep
+- Accept "keep tab open" limitation for demo, document as V2 native app requirement
+
+## 🎯 Revised Scope Based on Research Outcome
+**IF background tracking viable → Implement + AI agent (90 min)**
+**IF NOT viable → Focus on AI agent only + polish existing UX (45 min)**
 
 ## Production URLs
 - **Main**: https://local79.vercel.app
 - **Admin Dashboard**: https://local79.vercel.app/admin
 
-## CRITICAL LIMITATIONS (Document for V2)
-1. **Background Tracking**: Web apps CANNOT track location when tab closed/minimized
-   - iOS: Extremely limited, only works when app open
-   - Android: Slightly better in PWA mode, but still limited
-   - **Solution for V2**: Native app (React Native/Capacitor) required
-   - **Demo Workaround**: Workers must keep browser tab open during shift
+## 🔬 RESEARCH NEEDED (Confidence: Low)
+### 1. Background Location Tracking - Web PWA
+**Question**: Can we get persistent background geolocation after auth?
+- Service Workers + Background Sync API?
+- Geolocation API + Wake Lock API?
+- Progressive Web App (PWA) install + permissions?
+- Web Push API for periodic check-ins?
 
-2. **Timer Persistence**: If user closes tab, timer resets
-   - **Solution for V2**: Server-side timer + periodic check-ins
+**Research**: Need to investigate browser capabilities for:
+- iOS Safari limitations
+- Android Chrome PWA mode
+- Permission persistence after app close
 
-## MVP POLISH PLAN (Next 60 min)
-### Priority 1: Critical for Demo (30 min)
-1. ✅ Real-world geofence test (check-in → drive away → verify pause)
-2. ✅ Add "Keep this tab open" warning message
-3. ✅ Test full admin dashboard with multiple workers
-4. ✅ Verify all flows work on mobile browser
+### 2. Timer Persistence Without Open Window
+**Current Problem**: Timer state lost when tab closes
+**Desired Behavior**: 
+- User checks in → Timer starts
+- User closes window → Timer continues server-side
+- Server periodically checks if user still in geofence
+- Timer only stops if: (a) user leaves geofence OR (b) user manually clocks out
 
-### Priority 2: Nice-to-Have (20 min)
-5. 🎨 Add Teamsters logo (replace placeholder SVG)
-6. 📊 Admin dashboard enhancements:
-   - Show total hours worked today per person
-   - Add timestamp for when they checked in
-7. 🔔 Sound/vibration when leaving geofence
+**Implementation Options**:
+- Server-side cron job checking last known location?
+- Web Worker + periodic location pings?
+- Service Worker with Background Fetch?
 
-### Priority 3: If Time Permits (10 min)
-8. 📱 Add "Add to Home Screen" prompt for PWA
-9. 📝 Quick start guide for Jeff & Brandon
-10. 🐛 Final bug sweep
+## 🤖 NEW FEATURE: AI Reporting Agent
+**Goal**: Daily attendance reports sent to Jeff & Brandon automatically
+
+### Specs:
+- **Platform**: Anthropic Claude SDK (use prompt caching for cost efficiency)
+- **Budget**: $10-15 total (should last months with caching)
+- **Memory**: Use MCP memory tools for context persistence
+- **Trigger**: End of day (e.g., 8pm) or on-demand via chat interface
+
+### Report Contents:
+1. Total workers checked in today
+2. Who didn't show up (absent)
+3. Who left early (< 7 hours)
+4. Who stayed overtime (> 8 hours)
+5. Total hours logged per person
+
+### Implementation:
+- **Admin Dashboard**: Add chat box UI component
+- **Backend**: Edge function or API route
+- **Query**: Fetch attendance data from Supabase
+- **Agent**: Claude analyzes, generates natural language report
+- **Delivery**: In-app chat + optional email/SMS
+
+**Time Estimate**: 45 minutes to build
+
+## 📋 Action Plan (PENDING Research Results)
+### Current State: ⏸️ WAITING
+- Research query submitted to external tools
+- User is gathering insights on background location viability
+- Decision point: Once research returns, choose path A or B
+
+### Path A: If Background Tracking Viable (90 min)
+1. **Implement** chosen solution (Service Worker / Wake Lock / etc)
+2. **Remove** "keep tab open" warning
+3. **Test**: Check in → Close window → Verify tracking
+4. **Build** AI reporting agent (chat UI + Anthropic integration)
+5. **Deploy** to production
+
+### Path B: If Background Tracking NOT Viable (45 min)
+1. **Accept** limitation, add Wake Lock + "Add to Home Screen" prompt
+2. **Focus** entirely on AI reporting agent
+3. **Polish** existing UX (better messaging about keeping tab open)
+4. **Document** background tracking as V2 (native app) requirement
+5. **Deploy** to production
+
+### Next Immediate Action (Once Research Complete):
+- Update this plan based on findings
+- Execute chosen path
+- Test on actual picket line tonight
+
+## Completed Today
+- [x] Full auth + geofencing + timer
+- [x] Admin dashboard with hours/timestamps
+- [x] Deployed to Vercel
 
 ## Completed Items (Session 2025-09-30)
 - [x] UI redesign with Teamsters branding
@@ -170,14 +237,12 @@
 - [x] Enhanced admin dashboard (shows names + phone numbers)
 - [x] Push to GitHub (clean repo, no node_modules)
 
-## Next Steps (TONIGHT - By 9pm)
-- [x] Deploy to Vercel ✅
-- [x] Update Supabase Auth Site URL ✅
-- [ ] **NOW**: Real-world geofence test (drive test)
-- [ ] Add "keep tab open" warning
-- [ ] Test mobile browser flow
-- [ ] Admin dashboard polish
-- [ ] (If time) Add Teamsters logo
+## Immediate Next Steps
+1. **Research**: Background tracking options (15 min)
+2. **Implement**: Background location persistence (30 min)
+3. **Build**: AI reporting agent (30 min)
+4. **Test**: Real picket line test tonight
+5. **Demo**: Ready for tomorrow morning
 
 ## Post-Demo Priorities (V2)
 - [ ] Native app for true background tracking
