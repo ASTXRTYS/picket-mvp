@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { haversineMeters } from '../lib/geo'
@@ -18,33 +19,46 @@ export default function Home() {
   const tickRef = useRef<number|null>(null)
   const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState<any>(null)
+  const [profileResolved, setProfileResolved] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
   const [signUpData, setSignUpData] = useState({ fullName: '', phone: '', email: '' })
-  const [profileLoading, setProfileLoading] = useState(true)
 
   useEffect(() => {
-    const init = async () => {
+    let mounted = true;
+
+    (async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      setSession(session)
-      supabase.auth.onAuthStateChange((_event, session) => setSession(session))
+      if (mounted) setSession(session)
+    })()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (mounted) setSession(nextSession)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
-    init()
   }, [])
 
   useEffect(() => {
-    const load = async () => {
-      if (!session) {
-        setProfile(null)
-        setSites([])
-        setSelectedSiteId('')
-        setStatus('idle')
-        setIsNewUser(false)
-        setSignUpData({ fullName: '', phone: '', email: '' })
-        setProfileLoading(false)
-        return
-      }
+    let cancelled = false
 
-      setProfileLoading(true)
+    setProfile(null)
+    setSites([])
+    setSelectedSiteId('')
+    setStatus('idle')
+    setIsNewUser(false)
+    setSignUpData({ fullName: '', phone: '', email: '' })
+
+    if (!session) {
+      setProfileResolved(true)
+      return
+    }
+
+    setProfileResolved(false)
+
+    const load = async () => {
       try {
         let { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
         console.log('🔍 Loaded profile:', prof)
@@ -56,26 +70,37 @@ export default function Home() {
             email: session.user.email,
             role: 'worker'
           })
-          if (insertError) console.error('❌ Failed to create profile:', insertError)
-          const { data: newProf } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
-          prof = newProf || null
-          console.log('✅ Created fallback profile:', prof)
+          if (!insertError) {
+            const { data: newProf } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+            prof = newProf ?? null
+            console.log('✅ Created fallback profile:', prof)
+          }
         }
 
-        let workingProfile = prof || null
+        let workingProfile = prof ?? null
 
-        const pending = localStorage.getItem('pendingProfile')
+        const pending = typeof window !== 'undefined' ? localStorage.getItem('pendingProfile') : null
         if (pending && workingProfile && (!workingProfile.full_name || !workingProfile.phone)) {
-          const { fullName, phone } = JSON.parse(pending)
-          await supabase.from('profiles').update({
-            full_name: fullName,
-            phone: phone
-          }).eq('id', session.user.id)
-          localStorage.removeItem('pendingProfile')
-          const { data: refreshed } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
-          workingProfile = refreshed || workingProfile
-          console.log('✅ Updated profile from pending data:', workingProfile)
+          try {
+            const { fullName, phone } = JSON.parse(pending)
+            const { error: updateError } = await supabase.from('profiles').update({
+              full_name: fullName,
+              phone: phone
+            }).eq('id', session.user.id)
+            if (updateError) {
+              console.error('Failed to update profile from pending data:', updateError)
+              throw updateError
+            }
+            localStorage.removeItem('pendingProfile')
+            const { data: refreshed } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+            workingProfile = refreshed ?? workingProfile
+            console.log('✅ Updated profile from pending data:', workingProfile)
+          } catch (parseErr) {
+            console.error('Failed to apply pending profile data', parseErr)
+          }
         }
+
+        if (cancelled) return
 
         setProfile(workingProfile)
 
@@ -90,17 +115,23 @@ export default function Home() {
         }
 
         const { data } = await supabase.from('sites').select('*').order('name')
-        setSites(data || [])
-        if (workingProfile?.site_id) setSelectedSiteId(workingProfile.site_id)
-        setStatus('ready')
+        if (!cancelled) {
+          setSites(data || [])
+          if (workingProfile?.site_id) setSelectedSiteId(workingProfile.site_id)
+          setStatus('ready')
+        }
       } catch (err) {
-        console.error('Failed to load profile', err)
+        if (!cancelled) console.error('Failed to load profile', err)
       } finally {
-        setProfileLoading(false)
+        if (!cancelled) setProfileResolved(true)
       }
     }
 
     load()
+
+    return () => {
+      cancelled = true
+    }
   }, [session])
 
   // watch location when timing
@@ -113,11 +144,16 @@ export default function Home() {
       }, (err)=>{ console.error(err) }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 })
       setWatchId(id as any)
       return () => navigator.geolocation.clearWatch(id as any)
-    } else {
-      if (watchId) navigator.geolocation.clearWatch(watchId as any)
-      setWatchId(undefined)
     }
   }, [status])
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return
+    if (status !== 'in' && status !== 'paused' && watchId) {
+      navigator.geolocation.clearWatch(watchId as any)
+      setWatchId(undefined)
+    }
+  }, [status, watchId])
 
   // update distance + timer tick loop
   useEffect(() => {
@@ -244,6 +280,8 @@ export default function Home() {
     }
   }
 
+  const profileComplete = !!profile?.full_name && !!profile?.phone
+
   if (!session) {
     return (
       <div className="container">
@@ -337,12 +375,12 @@ export default function Home() {
             </>
           )}
         </div>
-        <footer>Demo build — works in the foreground. For background tracking we'll ship native.</footer>
+        <footer>Demo build — works in the foreground. For background tracking we&apos;ll ship native.</footer>
       </div>
     )
   }
 
-  if (session && (profileLoading || !profile)) {
+  if (!profileResolved) {
     return (
       <div className="container">
         <div className="logo-header">
@@ -356,8 +394,23 @@ export default function Home() {
     )
   }
 
+  if (session && profileResolved && !profile) {
+    return (
+      <div className="container">
+        <div className="logo-header">
+          <img src="/teamsters-logo.svg" alt="Teamsters Logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <h1>Union Picket Check-In</h1>
+        </div>
+        <div className="card main-card">
+          <p style={{textAlign: 'center', color: '#ef4444'}}>We couldn&apos;t load your profile. Please try signing out and back in.</p>
+          <button className="secondary" style={{marginTop: '16px'}} onClick={()=> supabase.auth.signOut()}>Sign out</button>
+        </div>
+      </div>
+    )
+  }
+
   // If logged in but profile incomplete, show completion form
-  if (session && profile && (!profile.full_name || !profile.phone)) {
+  if (session && profileResolved && !profileComplete && profile) {
     return (
       <div className="container">
         <div className="logo-header">
@@ -396,11 +449,12 @@ export default function Home() {
               }
               setLoading(true)
               try {
-                await supabase.from('profiles').update({
+                const { error: updateError } = await supabase.from('profiles').update({
                   full_name: signUpData.fullName,
                   phone: signUpData.phone
                 }).eq('id', session.user.id)
-                
+                if (updateError) throw updateError
+
                 // Refresh profile
                 const { data: updated } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
                 setProfile(updated)
@@ -475,7 +529,7 @@ export default function Home() {
           <div style={{fontSize: '48px', fontWeight: 'bold', color: 'var(--teamster-gold)', fontFamily: 'monospace'}}>
             {formatTime(activeSeconds)}
           </div>
-          <p className="small" style={{marginTop: '8px'}}>Timer runs only when you're inside the radius and this page is open.</p>
+          <p className="small" style={{marginTop: '8px'}}>Timer runs only when you&apos;re inside the radius and this page is open.</p>
         </div>
         <div className="row" style={{gap: '12px'}}>
           <button 

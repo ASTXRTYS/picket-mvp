@@ -113,11 +113,10 @@
 - **Fix**: Simplified logic - just send magic link for all users (no pre-auth profile check)
 - **Result**: Returning users now get magic link directly without sign-up form
 
-## Current Status (2025-09-30 22:21)
-- **Production**: https://local79.vercel.app ✅ DEPLOYED (commit e072812)
-- **Auth Fix**: Sign-up button added + profile loading guard ensures completion form shows before worker UI
-- **Testing**: Use incognito or sign out to verify new-user flow (profile completion mandatory)
-- **Next**: Confirm magic-link flow tonight, demo tomorrow a.m.
+## Current Status (2025-09-30 22:41)
+- **Local Branch**: refining auth guard (profileResolved + pending data logic)
+- **Production**: https://local79.vercel.app (last deploy e072812) → needs re-test after new push
+- **Goal**: Validate auth flow on localhost first (port 3001), then redeploy if clean
 
 ## Bug Fix Applied (21:35)
 **Problem**: After login, app went straight to site selection even with incomplete profile
@@ -133,12 +132,11 @@ CREATE POLICY "profiles auto insert" ON public.profiles
 ```
 This allows the trigger to successfully create profiles.
 
-## Current Flow (Auth)
-1. User enters email → chooses **Send Magic Link** (returning) or **Create account** (new) ✅
-2. If new: fills name/phone → magic link sent with data stored locally ✅
-3. User clicks link → logs in ✅
-4. App waits for profile load; if `full_name` missing → shows "Complete Your Profile" form ✅
-5. After update → proceeds to site selection ✅
+## Current Focus (Auth Debug)
+1. **Reset** profile state whenever session changes
+2. **Wait** for `profileResolved` before rendering worker UI
+3. **Require** both `full_name` & `phone` before continuing
+4. **Plan**: Run `npm run lint` + `npm run dev -- -p 3001`, walk through magic-link flow locally, then redeploy
 
 ## 🔬 Active Research (In Progress)
 **Question**: Is pure-web background location tracking viable for MVP, or do we need to pivot?

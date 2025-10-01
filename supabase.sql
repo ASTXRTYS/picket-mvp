@@ -36,6 +36,17 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- Helper function to check if current user is admin (bypasses RLS)
+create or replace function public.is_admin()
+returns boolean as $$
+begin
+  return exists(
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
+  );
+end;
+$$ language plpgsql security definer;
+
 -- Attendances
 create table if not exists public.attendances (
   id uuid primary key default gen_random_uuid(),
@@ -64,12 +75,12 @@ create policy "read sites" on public.sites for select to authenticated using (tr
 
 drop policy if exists "admin write sites" on public.sites;
 create policy "admin write sites" on public.sites for insert with check (
-  exists(select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  public.is_admin()
 );
 
 drop policy if exists "admin update sites" on public.sites;
 create policy "admin update sites" on public.sites for update using (
-  exists(select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  public.is_admin()
 );
 
 -- Profiles: users read own; admins read all; users update own name/site (optional)
@@ -78,11 +89,14 @@ create policy "profiles self read" on public.profiles for select using (id = aut
 
 drop policy if exists "profiles admin read" on public.profiles;
 create policy "profiles admin read" on public.profiles for select using (
-  exists(select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  public.is_admin()
 );
 
 drop policy if exists "profiles self update" on public.profiles;
 create policy "profiles self update" on public.profiles for update using (id = auth.uid());
+
+drop policy if exists "profiles self insert" on public.profiles;
+create policy "profiles self insert" on public.profiles for insert with check (id = auth.uid());
 
 -- Attendances: users can insert/select/update their own rows; admins can select all
 drop policy if exists "att self insert" on public.attendances;
@@ -93,7 +107,7 @@ create policy "att self read" on public.attendances for select using (user_id = 
 
 drop policy if exists "att admin read" on public.attendances;
 create policy "att admin read" on public.attendances for select using (
-  exists(select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  public.is_admin()
 );
 
 drop policy if exists "att self update" on public.attendances;

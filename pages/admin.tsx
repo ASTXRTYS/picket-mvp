@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import Link from 'next/link'
 
@@ -37,7 +37,7 @@ export default function Admin() {
 
   const canView = profile?.role === 'admin'
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     if (!site) return
     setLoading(true)
     try {
@@ -64,9 +64,9 @@ export default function Admin() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [site])
 
-  useEffect(()=>{ if (site && canView) refresh() }, [site, canView])
+  useEffect(()=>{ if (site && canView) refresh() }, [site, canView, refresh])
 
   if (!session) return (
     <div className="container"><div className="card"><p>Please <Link href="/">sign in</Link>.</p></div></div>
