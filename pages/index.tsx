@@ -23,6 +23,7 @@ export default function Home() {
   const [profileResolved, setProfileResolved] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
   const [signUpData, setSignUpData] = useState({ fullName: '', phone: '', email: '' })
+  const [activeSession, setActiveSession] = useState<any>(null)
 
   useEffect(() => {
     let mounted = true;
@@ -51,6 +52,9 @@ export default function Home() {
     setStatus('idle')
     setIsNewUser(false)
     setSignUpData({ fullName: '', phone: '', email: '' })
+    setActiveSession(null)
+    setAttendanceId(null)
+    setActiveSeconds(0)
 
     if (!session) {
       setProfileResolved(true)
@@ -119,7 +123,34 @@ export default function Home() {
         if (!cancelled) {
           setSites(data || [])
           if (workingProfile?.site_id) setSelectedSiteId(workingProfile.site_id)
-          setStatus('ready')
+
+          // Check for active session (PHASE 1: Session Detection)
+          const { data: existingSession } = await supabase
+            .from('attendances')
+            .select('*, sites(name)')
+            .eq('user_id', session.user.id)
+            .is('ended_at', null)
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (existingSession) {
+            console.log('🔄 Active session found:', existingSession)
+            setActiveSession(existingSession)
+            setAttendanceId(existingSession.id)
+            setSelectedSiteId(existingSession.site_id)
+
+            // Calculate elapsed time
+            const startTime = new Date(existingSession.started_at)
+            const now = new Date()
+            const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
+            setActiveSeconds(elapsedSeconds)
+
+            // Set status to indicate session exists but not actively tracking
+            setStatus('paused')
+          } else {
+            setStatus('ready')
+          }
         }
       } catch (err) {
         if (!cancelled) console.error('Failed to load profile', err)
@@ -273,17 +304,33 @@ export default function Home() {
   }
 
   async function handleClockOut() {
-    if (!attendanceId || !site) return
+    if (!attendanceId) return
     setLoading(true)
     try {
-      // last location check
+      // Get current location
       const p = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
       })
       const last = { lat: p.coords.latitude, lng: p.coords.longitude }
+
+      // PHASE 4: Calculate ACTUAL elapsed time from database
+      // Fetch the session start time to calculate true elapsed seconds
+      const { data: session } = await supabase
+        .from('attendances')
+        .select('started_at')
+        .eq('id', attendanceId)
+        .single()
+
+      if (!session) throw new Error('Session not found')
+
+      const startTime = new Date(session.started_at)
+      const endTime = new Date()
+      const totalSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000)
+
+      // Update attendance with calculated time from database
       const { error } = await supabase.from('attendances').update({
-        ended_at: new Date().toISOString(),
-        seconds_inside: activeSeconds,
+        ended_at: endTime.toISOString(),
+        seconds_inside: totalSeconds, // Use calculated time, not timer
         last_lat: last.lat,
         last_lng: last.lng,
       }).eq('id', attendanceId)
@@ -300,6 +347,10 @@ export default function Home() {
         }
       }
 
+      // Clear session state
+      setActiveSession(null)
+      setAttendanceId(null)
+      setActiveSeconds(0)
       setStatus('done')
     } catch (e:any) {
       alert(e.message || String(e))
@@ -529,8 +580,76 @@ export default function Home() {
 
       <div className="card main-card">
         <h2 style={{marginBottom: '20px'}}>Picket Time Tracker</h2>
-        
-        {attendanceId && (
+
+        {/* PHASE 2: Resume Session UI */}
+        {activeSession && status === 'paused' && (
+          <div style={{
+            padding: '16px',
+            background: 'rgba(255, 184, 28, 0.1)',
+            border: '2px solid #FFB81C',
+            borderRadius: '8px',
+            marginBottom: '16px'
+          }}>
+            <div style={{fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: '#FFB81C'}}>
+              🕒 Active Session Found
+            </div>
+            <div style={{fontSize: '14px', color: '#9ca3af', marginBottom: '12px'}}>
+              You checked in at {new Date(activeSession.started_at).toLocaleTimeString()}
+              {activeSession.sites?.name && ` at ${activeSession.sites.name}`}
+            </div>
+            <div style={{fontSize: '32px', fontWeight: 'bold', color: 'var(--teamster-gold)', fontFamily: 'monospace', textAlign: 'center', marginBottom: '12px'}}>
+              {formatTime(activeSeconds)}
+            </div>
+            <div style={{display: 'flex', gap: '12px'}}>
+              <button
+                style={{flex: 1}}
+                disabled={loading}
+                onClick={async ()=> {
+                  setLoading(true)
+                  try {
+                    // PHASE 3: Resume Tracking logic
+                    // Start location watch
+                    await new Promise<void>((resolve, reject) => {
+                      if (!('geolocation' in navigator)) return reject(new Error('Geolocation not supported.'))
+                      navigator.geolocation.getCurrentPosition((p)=>{
+                        setPos({ lat: p.coords.latitude, lng: p.coords.longitude })
+                        resolve()
+                      }, (err)=> reject(err), { enableHighAccuracy: true, timeout: 10000 })
+                    })
+
+                    // Re-acquire wake lock
+                    try {
+                      if ('wakeLock' in navigator) {
+                        wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
+                        console.log('✅ Wake lock reacquired')
+                      }
+                    } catch (wakeLockErr) {
+                      console.error('Failed to reacquire wake lock:', wakeLockErr)
+                    }
+
+                    setStatus('in')
+                  } catch (e: any) {
+                    alert(e.message || String(e))
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+              >
+                {loading ? 'Starting...' : 'Resume Tracking'}
+              </button>
+              <button
+                className="secondary"
+                style={{flex: 1}}
+                disabled={loading}
+                onClick={handleClockOut}
+              >
+                Clock Out
+              </button>
+            </div>
+          </div>
+        )}
+
+        {attendanceId && status === 'in' && (
           <div style={{
             padding: '12px 16px',
             background: '#FFB81C',
@@ -541,9 +660,9 @@ export default function Home() {
             fontSize: '14px',
             textAlign: 'center'
           }}>
-            📍 Location tracking active • Your screen will stay on during your shift
+            📍 Location tracking active
             <div style={{fontSize: '12px', marginTop: '4px', fontWeight: '400'}}>
-              Keep this app open for accurate tracking. Consider plugging in your device.
+              Session will persist if you close this app. You can return anytime to clock out.
             </div>
           </div>
         )}

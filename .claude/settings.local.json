@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(rm:*)",
+      "Bash(npm run dev:*)",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
