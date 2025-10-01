@@ -605,16 +605,22 @@ export default function Home() {
                 style={{flex: 1}}
                 disabled={loading}
                 onClick={async ()=> {
+                  console.log('🔵 Resume Tracking clicked')
                   setLoading(true)
                   try {
                     // PHASE 3: Resume Tracking logic
+                    console.log('📍 Requesting location permission...')
                     // Start location watch
                     await new Promise<void>((resolve, reject) => {
                       if (!('geolocation' in navigator)) return reject(new Error('Geolocation not supported.'))
                       navigator.geolocation.getCurrentPosition((p)=>{
+                        console.log('✅ Location acquired:', p.coords.latitude, p.coords.longitude)
                         setPos({ lat: p.coords.latitude, lng: p.coords.longitude })
                         resolve()
-                      }, (err)=> reject(err), { enableHighAccuracy: true, timeout: 10000 })
+                      }, (err)=> {
+                        console.error('❌ Location error:', err)
+                        reject(err)
+                      }, { enableHighAccuracy: true, timeout: 10000 })
                     })
 
                     // Re-acquire wake lock
@@ -627,9 +633,12 @@ export default function Home() {
                       console.error('Failed to reacquire wake lock:', wakeLockErr)
                     }
 
+                    console.log('✅ Setting status to IN')
                     setStatus('in')
+                    console.log('✅ Resume complete!')
                   } catch (e: any) {
-                    alert(e.message || String(e))
+                    console.error('❌ Resume failed:', e)
+                    alert('Failed to resume tracking: ' + (e.message || String(e)))
                   } finally {
                     setLoading(false)
                   }
