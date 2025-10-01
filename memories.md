@@ -10,6 +10,40 @@
 
 **Primary Goal**: Add an AI admin copilot (chat widget) that can answer questions about attendance data and generate weekly reports for stakeholders using Claude API.
 
+## 📊 Reporting Requirements (Defined 3:42 AM)
+
+**Current Manual Process**: Workers write name, signature, arrival time, departure time on paper clipboard. Stakeholders manually review at end of week.
+
+**Expected Work Schedule**: 7 hours/day, Monday-Friday (must be continuous - can't leave and return)
+
+**What Stakeholders Need to See (End of Week Report)**:
+1. ✅ **Full Shift Completions** (GREEN): Who did 7+ hours/day - these workers are compliant
+2. ❌ **No-Shows** (RED): Who didn't show up at all on specific days
+3. ⚠️ **Partial Shifts** (YELLOW): Who showed up but left early (< 7 hours)
+4. 📈 **Attendance Patterns**: Days worked per person, trends over time
+5. 📍 **Location Verification**: Confirm check-in/check-out happened at picket line GPS coordinates
+
+**Key Insight**: They care about DURATION (≥7hrs) and CONTINUITY (one session, not multiple), not specific times of day.
+
+**Data We Currently Track** (✅ Sufficient for MVP):
+- `started_at` - Check-in timestamp
+- `ended_at` - Check-out timestamp  
+- `seconds_inside` - Total duration (calculated from timestamps)
+- `last_lat/lng` - GPS coordinates (check-in location stored, updated on check-out)
+- `site_id` - Which picket line
+
+**What We Can Derive**:
+- Full shift = `seconds_inside >= 25200` (7 hours × 3600 seconds)
+- No-show = No attendance record for that date + user combo
+- Left early = `ended_at IS NOT NULL AND seconds_inside < 25200`
+- Days worked = `COUNT(DISTINCT DATE(started_at)) GROUP BY user_id`
+- Location verified = Check `last_lat/lng` is within geofence radius
+
+**Missing for V2** (not critical for MVP):
+- Multiple GPS pings during shift (for continuous presence verification)
+- Break tracking
+- Reason codes for absences
+
 ## Current Status: ✅ CORE APP WORKING
 
 ### Production URLs
