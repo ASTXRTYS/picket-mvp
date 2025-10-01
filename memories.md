@@ -735,9 +735,36 @@ WHERE ended_at IS NULL
 4. Check if wake lock acquisition fails
 5. Look for state update issues
 
-## 🎯 Revised Scope Based on Research Outcome
-**IF background tracking viable → Implement + AI agent (90 min)**
-**IF NOT viable → Focus on AI agent only + polish existing UX (45 min)**
+## 🎯 IMMEDIATE FOCUS (POST-COMPACT REFERENCE)
+
+### Current State
+- **App**: Session persistence PWA deployed at https://picket-e0onwm550-jason-madrugas-projects.vercel.app
+- **Time**: 12:15 AM, demo at 9:00 AM (8h 45m remaining)
+- **Latest Commit**: 8799fe4
+- **Status**: Core features working, critical bugs identified
+
+### CRITICAL BUG TO FIX NOW
+**Resume Tracking button doesn't work** (line 587-636 in pages/index.tsx)
+- User clicks button → nothing happens
+- Expected: Status changes from 'paused' to 'in', tracking resumes
+- Actual: Button clicks but no visible change
+- Debug: Check if location permission failing, check state updates
+
+### Priority Tasks (In Order)
+1. **Fix Resume Tracking bug** - blocking demo
+2. **Admin "Currently On Duty" view** - essential for stakeholder demo
+   - Query: `SELECT * FROM attendances WHERE ended_at IS NULL`
+   - Show: Name, Site, Time Elapsed, Check-in Time
+3. **Add estimated clock-out time** - nice UX touch
+   - Calculate: check_in_time + 7 hours
+   - Display: "Clocked in at 8:05 AM • Est. clock-out: 3:05 PM"
+4. **Rename URL to local79.vercel.app** - branding (optional, risky)
+
+### How to Use memories.md
+- **Always read memories.md first** after context reset
+- **Document all decisions, bugs, feedback** immediately
+- **Update checkpoint sections** after each major change
+- **Commit to git frequently** to preserve state
 
 ## Production URLs
 - **Main**: https://local79.vercel.app
