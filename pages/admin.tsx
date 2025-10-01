@@ -33,6 +33,10 @@ export default function Admin() {
     if (prof?.site_id) {
       const found = (s || []).find(x => x.id === prof.site_id)
       if (found) setSite(found)
+    } else if (s && s.length > 0) {
+      // Auto-select first site if admin has no site_id assigned
+      setSite(s[0])
+      console.log('🏢 Auto-selected first site:', s[0].name)
     }
   })() }, [session])
 
