@@ -147,7 +147,7 @@ export default function Admin() {
 
       <div className="card">
         <div className="row" style={{justifyContent:'space-between'}}>
-          <h3>Today's attendance</h3>
+          <h3>Today&apos;s attendance</h3>
           <button onClick={refresh} disabled={loading}>Refresh</button>
         </div>
         <div className="row">
